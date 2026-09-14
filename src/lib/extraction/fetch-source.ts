@@ -1,5 +1,8 @@
 const FETCH_TIMEOUT_MS = 8_000;
-const MAX_TEXT_CHARS = 20_000;
+// Trimmed down from 20,000: real blog pages are mostly nav/ads/comments once
+// tags are stripped, and a smaller prompt is both faster and more focused for
+// the extraction model.
+const MAX_TEXT_CHARS = 10_000;
 
 function looksLikeUrl(source: string) {
   try {

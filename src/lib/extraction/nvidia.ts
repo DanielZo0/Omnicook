@@ -2,7 +2,10 @@ import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt } from './prompt';
 import { ExtractionProviderError } from './errors';
 
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const REQUEST_TIMEOUT_MS = 20_000;
+// Real web pages (vs. a short pasted caption) push much more text through the
+// prompt and this free-tier endpoint's latency varies a lot under load, so
+// give it real headroom rather than the 20s that worked for short inputs.
+const REQUEST_TIMEOUT_MS = 40_000;
 
 export async function extractWithNvidia(sourceUrl: string | null, text: string): Promise<unknown> {
   const apiKey = process.env.NVIDIA_API_KEY;

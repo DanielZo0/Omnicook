@@ -9,6 +9,9 @@ const importRequestSchema = z.object({
   source: z.string().trim().min(4).max(20_000),
 });
 
+// NVIDIA's free-tier endpoint can take up to ~40s on a real web page; ask
+// Vercel for headroom beyond its default function timeout.
+export const maxDuration = 45;
 
 export async function POST(request: Request) {
   const parsed = importRequestSchema.safeParse(await request.json());
