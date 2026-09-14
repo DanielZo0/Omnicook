@@ -1,0 +1,10 @@
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: #f8f6f0; color: #1c241d; font-family: 'DM Sans', system-ui, sans-serif; }
+a { color: #244f3c; text-decoration: none; }
+a:hover { color: #ec795c; }
+button { cursor: pointer; font: inherit; }
+input, textarea { font: inherit; }
+::-webkit-scrollbar { width: 0; height: 0; }
+@keyframes omspin { to { transform: rotate(360deg); } }
+@keyframes ompulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
