@@ -60,6 +60,10 @@ export async function updateRecipe(id: string, updates: { draft?: RecipeDraft; s
   });
 }
 
+export async function deleteRecipe(id: string): Promise<void> {
+  await callApi(`/api/recipes/${id}`, { method: 'DELETE' });
+}
+
 export async function listCollections(): Promise<Collection[]> {
   const data = await callApi<{ collections: Collection[] }>('/api/collections');
   return data.collections;

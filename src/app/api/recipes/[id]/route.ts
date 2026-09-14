@@ -64,3 +64,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!isDbConfigured()) {
+    return NextResponse.json({ ok: false, message: 'The database is not configured yet.' }, { status: 503 });
+  }
+  const userId = await requireUserId();
+  if (!userId) return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
+
+  const { id } = await params;
+  const [existing] = await db().select({ id: recipes.id }).from(recipes)
+    .where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
+  if (!existing) return NextResponse.json({ ok: false, message: 'Recipe not found.' }, { status: 404 });
+
+  await db().delete(recipes).where(eq(recipes.id, id));
+
+  return NextResponse.json({ ok: true });
+}

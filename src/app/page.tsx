@@ -9,7 +9,7 @@ import {
 import { vaultToMobile } from '@/lib/mobile/adapters';
 import { AUTH_CONFIGURED, useSession } from '@/lib/auth/session';
 import {
-  createCollection, createRecipeFromDraft, listCollections, listMealPlanItems, listRecipes,
+  createCollection, createRecipeFromDraft, deleteRecipe, listCollections, listMealPlanItems, listRecipes,
   updateRecipe, upsertMealPlanItem, type Collection, type MealPlanItem, type VaultRecipe,
 } from '@/lib/api/client';
 import type { RecipeDraft } from '@/lib/recipe-schema';
@@ -82,6 +82,7 @@ export default function Home() {
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [creatingCollection, setCreatingCollection] = useState(false);
+  const [deletingRecipe, setDeletingRecipe] = useState(false);
   const extractTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -235,6 +236,22 @@ export default function Home() {
     setSelectedCollectionId(recipe.collectionId);
     setExtractSeconds(null);
     go('edit');
+  }
+
+  async function deleteActiveRecipe() {
+    if (!activeId) return;
+    if (!window.confirm('Delete this recipe? This cannot be undone.')) return;
+    setDeletingRecipe(true);
+    try {
+      await deleteRecipe(activeId);
+      setActiveId(null);
+      await refreshVault();
+      go('vault');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Could not delete this recipe.');
+    } finally {
+      setDeletingRecipe(false);
+    }
   }
 
   async function saveReview() {
@@ -648,7 +665,10 @@ export default function Home() {
           <div style={s('position:absolute;inset:0;background:linear-gradient(to top,#0e1a12e6 2%,#0e1a1200 55%)')} />
           <div style={s('position:absolute;top:16px;left:18px;right:18px;display:flex;justify-content:space-between')}>
             <button onClick={() => go('vault')} style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>‹</button>
-            {signedIn && <button onClick={openEditRecipe} aria-label="Edit recipe" style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>✎</button>}
+            {signedIn && <div style={s('display:flex;gap:8px')}>
+              <button onClick={openEditRecipe} aria-label="Edit recipe" style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>✎</button>
+              <button onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe" style={s(`width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px;color:${CORAL};opacity:${deletingRecipe ? 0.6 : 1}`)}>🗑</button>
+            </div>}
           </div>
           <div style={s('position:absolute;left:20px;right:20px;bottom:16px;color:#fffdf8;display:flex;flex-direction:column;gap:7px')}>
             <span style={s('align-self:flex-start;padding:5px 10px;border-radius:20px;background:#fffdf8;color:#1c241d;font-size:10.5px;font-weight:700')}>{active.s}</span>
