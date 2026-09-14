@@ -9,9 +9,6 @@ const importRequestSchema = z.object({
   source: z.string().trim().min(4).max(20_000),
 });
 
-// NVIDIA's reasoning model can take 30-55s to respond; ask Vercel for headroom
-// beyond its default function timeout so it isn't cut off mid-extraction.
-export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const parsed = importRequestSchema.safeParse(await request.json());

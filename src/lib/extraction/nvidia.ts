@@ -2,9 +2,7 @@ import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt } from './prompt';
 import { ExtractionProviderError } from './errors';
 
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
-// This model reasons internally before answering (burns real tokens/time even
-// on trivial prompts), so it needs more headroom than the other providers.
-const REQUEST_TIMEOUT_MS = 55_000;
+const REQUEST_TIMEOUT_MS = 20_000;
 
 export async function extractWithNvidia(sourceUrl: string | null, text: string): Promise<unknown> {
   const apiKey = process.env.NVIDIA_API_KEY;
@@ -31,6 +29,10 @@ export async function extractWithNvidia(sourceUrl: string | null, text: string):
         model,
         temperature: 0.2,
         response_format: { type: 'json_object' },
+        // This model reasons at length by default (100+ tokens even for a
+        // trivial prompt), which blew past every timeout tried. Disabling it
+        // dropped a real extraction call from 55s+ (timing out) to under 2s.
+        chat_template_kwargs: { enable_thinking: false },
         messages: [
           { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
           { role: 'user', content: buildExtractionUserPrompt(sourceUrl, text) },

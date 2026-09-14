@@ -56,6 +56,9 @@ async function askNvidia(systemPrompt: string, question: string): Promise<string
       body: JSON.stringify({
         model,
         temperature: 0.4,
+        // Disable this model's default reasoning mode — it otherwise burns
+        // significant time/tokens "thinking" even for simple questions.
+        chat_template_kwargs: { enable_thinking: false },
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: question },
