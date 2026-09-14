@@ -53,6 +53,13 @@ export async function createRecipeFromDraft(draft: RecipeDraft, sourceUrl: strin
   });
 }
 
+export async function updateRecipe(id: string, updates: { draft?: RecipeDraft; sourceUrl?: string | null; collectionId?: string | null }): Promise<void> {
+  await callApi(`/api/recipes/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
 export async function listCollections(): Promise<Collection[]> {
   const data = await callApi<{ collections: Collection[] }>('/api/collections');
   return data.collections;

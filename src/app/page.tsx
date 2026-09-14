@@ -10,11 +10,11 @@ import { vaultToMobile } from '@/lib/mobile/adapters';
 import { AUTH_CONFIGURED, useSession } from '@/lib/auth/session';
 import {
   createCollection, createRecipeFromDraft, listCollections, listMealPlanItems, listRecipes,
-  upsertMealPlanItem, type Collection, type MealPlanItem, type VaultRecipe,
+  updateRecipe, upsertMealPlanItem, type Collection, type MealPlanItem, type VaultRecipe,
 } from '@/lib/api/client';
 import type { RecipeDraft } from '@/lib/recipe-schema';
 
-type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
+type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
 type Layout = 'grid' | 'feed' | 'editorial';
 type EntryMode = 'share' | 'paste';
 
@@ -69,6 +69,7 @@ export default function Home() {
   const [extractIdx, setExtractIdx] = useState(0);
   const [extractSeconds, setExtractSeconds] = useState<number | null>(null);
   const [reviewDraft, setReviewDraft] = useState<{ draft: RecipeDraft; sourceUrl: string | null } | null>(null);
+  const [editRecipeId, setEditRecipeId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [vaultRecipes, setVaultRecipes] = useState<VaultRecipe[]>([]);
@@ -205,10 +206,35 @@ export default function Home() {
   }
 
   function discardReview() {
+    const wasEditing = editRecipeId != null;
     setReviewDraft(null);
+    setEditRecipeId(null);
     setSelectedCollectionId(null);
     setNewCollectionName('');
-    go('import');
+    go(wasEditing ? 'detail' : 'import');
+  }
+
+  function openEditRecipe() {
+    if (!signedIn || !activeId) return;
+    const recipe = vaultRecipes.find((r) => r.id === activeId);
+    if (!recipe) return;
+    setReviewDraft({
+      draft: {
+        title: recipe.title,
+        creator: recipe.creator,
+        category: recipe.category as RecipeDraft['category'],
+        prepMinutes: recipe.prepMinutes,
+        cookMinutes: recipe.cookMinutes,
+        servings: recipe.servings,
+        ingredients: recipe.ingredients.map((ingredient) => ({ ...ingredient })),
+        steps: recipe.steps.map((step) => ({ ...step })),
+      },
+      sourceUrl: recipe.sourceUrl,
+    });
+    setEditRecipeId(recipe.id);
+    setSelectedCollectionId(recipe.collectionId);
+    setExtractSeconds(null);
+    go('edit');
   }
 
   async function saveReview() {
@@ -216,13 +242,23 @@ export default function Home() {
     if (!signedIn) { setStatus('Sign in to save recipes to your vault.'); return; }
     setSaving(true);
     try {
-      await createRecipeFromDraft(reviewDraft.draft, reviewDraft.sourceUrl, selectedCollectionId);
-      setReviewDraft(null);
-      setSource('');
-      setSelectedCollectionId(null);
-      setNewCollectionName('');
-      await refreshVault();
-      go('vault');
+      if (editRecipeId) {
+        await updateRecipe(editRecipeId, { draft: reviewDraft.draft, sourceUrl: reviewDraft.sourceUrl, collectionId: selectedCollectionId });
+        await refreshVault();
+        setReviewDraft(null);
+        setEditRecipeId(null);
+        setSelectedCollectionId(null);
+        setNewCollectionName('');
+        go('detail');
+      } else {
+        await createRecipeFromDraft(reviewDraft.draft, reviewDraft.sourceUrl, selectedCollectionId);
+        setReviewDraft(null);
+        setSource('');
+        setSelectedCollectionId(null);
+        setNewCollectionName('');
+        await refreshVault();
+        go('vault');
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not save this recipe.');
     } finally {
@@ -544,14 +580,14 @@ export default function Home() {
       <button onClick={() => go('vault')} style={s('margin-top:16px;width:100%;padding:13px;border:1px solid #ffffff3d;border-radius:14px;background:transparent;color:#d5e3d1;font-size:13px;font-weight:600')}>Keep browsing while this finishes</button>
     </div>}
 
-    {screen === 'review' && reviewDraft && <div style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
+    {(screen === 'review' || screen === 'edit') && reviewDraft && <div style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
       <div style={s('flex:1;overflow:auto;padding:20px 0 24px')}>
         <div style={s('display:flex;align-items:center;justify-content:space-between;padding:0 20px')}>
           <button onClick={discardReview} style={s(`width:36px;height:36px;border:1px solid ${LINE};border-radius:50%;background:${CARD};font-size:15px`)}>‹</button>
           {extractSeconds != null && <span style={s(`display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;background:${LIME};font-size:11.5px;font-weight:700`)}>✦ Extracted in {extractSeconds}s</span>}
         </div>
         <div style={s('padding:16px 20px 0')}>
-          <div style={s('font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#6d806b')}>Check before saving</div>
+          <div style={s('font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#6d806b')}>{editRecipeId ? 'Edit recipe' : 'Check before saving'}</div>
           <input value={reviewDraft.draft.title} onChange={(e) => updateDraft('title', e.target.value)} placeholder="Recipe title" style={s("width:100%;margin-top:6px;padding:0;border:0;outline:0;background:transparent;font-family:'Playfair Display',serif;font-weight:700;font-size:27px;letter-spacing:-.5px;line-height:1.15;box-sizing:border-box")} />
           <div style={s('display:flex;gap:8px;flex-wrap:wrap;margin-top:12px')}>
             {(['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Other'] as const).map((cat) => { const on = reviewDraft.draft.category === cat; return <button key={cat} onClick={() => updateDraft('category', cat)} style={s(`padding:7px 11px;border:1px solid ${on ? GREEN : LINE};border-radius:20px;background:${on ? GREEN : CARD};color:${on ? '#fff' : INK};font-size:11.5px;font-weight:600`)}>{cat}</button>; })}
@@ -601,7 +637,7 @@ export default function Home() {
       </div>
       <div style={s(`padding:12px 20px 30px;border-top:1px solid ${LINE};background:${PAPER};display:flex;gap:10px`)}>
         <button onClick={discardReview} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>Discard</button>
-        <button onClick={saveReview} disabled={!signedIn || saving} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700;opacity:${!signedIn || saving ? 0.6 : 1}`)}>{saving ? 'Saving…' : signedIn ? 'Save to vault' : 'Sign in to save'}</button>
+        <button onClick={saveReview} disabled={!signedIn || saving} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700;opacity:${!signedIn || saving ? 0.6 : 1}`)}>{saving ? 'Saving…' : !signedIn ? 'Sign in to save' : editRecipeId ? 'Save changes' : 'Save to vault'}</button>
       </div>
     </div>}
 
@@ -612,6 +648,7 @@ export default function Home() {
           <div style={s('position:absolute;inset:0;background:linear-gradient(to top,#0e1a12e6 2%,#0e1a1200 55%)')} />
           <div style={s('position:absolute;top:16px;left:18px;right:18px;display:flex;justify-content:space-between')}>
             <button onClick={() => go('vault')} style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>‹</button>
+            {signedIn && <button onClick={openEditRecipe} aria-label="Edit recipe" style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>✎</button>}
           </div>
           <div style={s('position:absolute;left:20px;right:20px;bottom:16px;color:#fffdf8;display:flex;flex-direction:column;gap:7px')}>
             <span style={s('align-self:flex-start;padding:5px 10px;border-radius:20px;background:#fffdf8;color:#1c241d;font-size:10.5px;font-weight:700')}>{active.s}</span>
