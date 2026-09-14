@@ -26,6 +26,10 @@ Rules:
   fruit/vegetables/herbs, "Dairy & chilled" for dairy, eggs, tofu, or anything refrigerated,
   "Pantry" for everything else (dry goods, spices, oils, canned/jarred items). Default to
   "Pantry" when unsure.
+- "unit" is a short measurement word only (e.g. "g", "cup", "tbsp", "clove") — never a
+  description of the ingredient itself. If there's no real unit (e.g. "2 eggs", "1/2 onion"),
+  use null for "unit" and put the descriptive word in "name" instead (name: "onion", not
+  unit: "onion"). Put any extra detail (e.g. "cut into cubes", "divided") in "notes".
 - Never invent ingredients or steps that are not implied by the source text.
 - Output must be valid JSON with no markdown code fences.`;
 

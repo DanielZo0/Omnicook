@@ -9,8 +9,8 @@ export const recipeSchema = z.object({
   servings: z.number().positive().nullable().default(null),
   ingredients: z.array(z.object({
     position: z.number().int().nonnegative(),
-    quantity: z.string().max(50).nullable().default(null),
-    unit: z.string().max(30).nullable().default(null),
+    quantity: z.string().max(80).nullable().default(null),
+    unit: z.string().max(60).nullable().default(null),
     name: z.string().min(1).max(160),
     notes: z.string().max(300).nullable().default(null),
     aisle: z.enum(['Produce', 'Dairy & chilled', 'Pantry']).default('Pantry'),
