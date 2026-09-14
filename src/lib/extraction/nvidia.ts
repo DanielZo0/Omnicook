@@ -2,7 +2,9 @@ import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt } from './prompt';
 import { ExtractionProviderError } from './errors';
 
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const REQUEST_TIMEOUT_MS = 30_000;
+// This model reasons internally before answering (burns real tokens/time even
+// on trivial prompts), so it needs more headroom than the other providers.
+const REQUEST_TIMEOUT_MS = 55_000;
 
 export async function extractWithNvidia(sourceUrl: string | null, text: string): Promise<unknown> {
   const apiKey = process.env.NVIDIA_API_KEY;
