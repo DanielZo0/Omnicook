@@ -134,22 +134,47 @@ Omnicook is a browser application for importing social-media and food-blog recip
     fetching docs pages, after the model-not-found mismatch happened twice.
   - **Current default: `nvidia/nemotron-3.5-lightning-30b-a3b`** — confirmed live on its own
     model page: Free Endpoint available, not deprecated, and "Structured Output: Supported".
-    Smaller and faster than the original 120B pick, too (30B vs 120B). `response_format:
-    json_object` is back in the NVIDIA request. It's also a reasoning-capable model
-    (`enable_thinking`, left off/default here), so the response parser defensively strips a
-    leading `<think>...</think>` block and any markdown code fence before `JSON.parse`, in
-    case the reasoning trace ever leaks into the same content field.
-  - **Needs `NVIDIA_API_KEY`** (get one free at build.nvidia.com → any model page → "Get API
-    Key") — not yet supplied, so this is code-complete but unverified against a real NVIDIA
-    response.
+  - **NVIDIA extraction is now fully working end-to-end, live in production**, after fixing
+    two real bugs found while testing with a real key:
+    1. **The actual bug behind the earlier "404 page not found" errors** (previously
+       misdiagnosed as a local proxy/environment issue — it wasn't): `NVIDIA_MODEL` in
+       `.env.local` had accidentally been set to a second API key value instead of a model
+       name. NVIDIA's gateway was routing to a nonexistent "model" named `nvapi-...` and
+       returning a Go-style 404. Fixed by correcting the value back to
+       `nvidia/nemotron-3.5-lightning-30b-a3b`.
+    2. This model reasons at length by default — 100+ tokens even on a trivial one-word
+       prompt — which blew through every timeout tried, up to 55s with `maxDuration: 60`
+       set on the Vercel function. Fixed by setting `chat_template_kwargs: {enable_thinking:
+       false}` in the request body (both `src/lib/extraction/nvidia.ts` and the sous-chef
+       equivalent), which dropped a real extraction call from timing out to ~8-17s. The
+       earlier defensive `<think>...</think>`-stripping in the response parser is kept as a
+       cheap safety net but is no longer load-bearing.
+  - **Verified live against the deployed production app**: pasted a real caption through the
+    actual `/login` → import → review → save flow at https://omnicook-seven.vercel.app,
+    watched the review screen populate with 5 correctly-typed ingredients (right `aisle` enum
+    values) and 4 steps in ~8 seconds, saved it, and confirmed it persisted in the vault.
+- **Deployed to production on Vercel**, connected to a new GitHub repo:
+  - Merged this rebuild into the pre-existing `DanielZo0/Omnicook` GitHub repo (public; had
+    two commits from the very first prototype) rather than creating a duplicate — one
+    `index.html` merge conflict, resolved by keeping this session's version.
+  - Live at **https://omnicook-seven.vercel.app** (Vercel project `danielzo0s-projects/omnicook`,
+    linked via CLI since GitHub auto-connect failed — deploys are manual via `vercel deploy
+    --prod` until that's fixed in the Vercel dashboard, not via git push).
+  - All required env vars are set on Vercel's Production environment: `DATABASE_URL`,
+    `NEXT_PUBLIC_NEON_AUTH_BASE_URL`, `NEON_AUTH_BASE_URL`, `NVIDIA_API_KEY`, `NVIDIA_MODEL`,
+    `XAI_API_KEY`, `XAI_MODEL`. **`NEON_AUTH_COOKIE_SECRET` on Vercel is a freshly generated
+    value, deliberately different from the one in local `.env.local`** — sessions from one
+    environment won't validate against the other, which is intentional.
+  - Registered the production domain with Neon Auth's trusted-domains list
+    (`neon neon-auth domain add https://omnicook-seven.vercel.app`) — skipping this causes an
+    "invalid domain" sign-in failure on the deployed site specifically.
 
 ## In progress
 
 - Google sign-in is wired up in the UI but blocked by the Neon-side OAuth misconfiguration
   described above — needs either a Neon fix or your own Google OAuth client.
-- Extraction is code-complete against four possible providers but has **no working key yet**:
-  Groq unset, NVIDIA unset, xAI valid but unfunded, Gemini unset. The AI's aisle
-  classifications are also unverified against any real model response as a result.
+- Groq and Gemini keys are still unset (NVIDIA and xAI are the only providers with real
+  working/valid keys right now, and NVIDIA is confirmed working end-to-end in production).
 - Recipe images: saved recipes currently use one placeholder photo since there is no
   image-storage integration yet.
 - Service worker registration/offline caching for the Next.js app (the old static-prototype
@@ -163,8 +188,9 @@ Omnicook is a browser application for importing social-media and food-blog recip
 
 ## Not yet connected
 
-Neon Postgres and Neon Auth are live and claimed into the user's real account. No Vercel
-deployment has been provisioned yet, and no valid Groq/Gemini key is known to work (see below).
+Everything required for a working app is live: Neon Postgres, Neon Auth, NVIDIA extraction,
+and the Vercel production deployment. Only Groq, Gemini, and a real Google OAuth client
+remain unconnected, and none of those block core functionality.
 
 ## Required credentials
 
@@ -173,42 +199,38 @@ deployment has been provisioned yet, and no valid Groq/Gemini key is known to wo
 | `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | Neon Postgres | Vercel server env + `.env.local` | ✅ live, claimed |
 | `NEXT_PUBLIC_NEON_AUTH_BASE_URL` | Neon Auth | Vercel + `.env.local` | ✅ live |
 | `NEON_AUTH_BASE_URL` | Neon Auth | Vercel server environment only | ✅ live |
-| `NEON_AUTH_COOKIE_SECRET` | generated locally | Vercel server environment only | ✅ set (rotate for prod) |
-| `GROQ_API_KEY` | console.groq.com (free tier) | Vercel server environment only | ❌ unset |
-| `NVIDIA_API_KEY` | build.nvidia.com (free tier) | Vercel server environment only | ❌ unset — get one free, this is the fastest path to a working import right now |
+| `NEON_AUTH_COOKIE_SECRET` | generated locally | Vercel server environment only | ✅ set (different value on Vercel vs. local, deliberately) |
+| `NVIDIA_API_KEY` / `NVIDIA_MODEL` | build.nvidia.com (free tier) | Vercel server environment only | ✅ live, verified working end-to-end |
 | `XAI_API_KEY` | console.x.ai | Vercel server environment only | ⚠️ set and valid, but the xAI team has no credits — 403s until funded |
+| `GROQ_API_KEY` | console.groq.com (free tier) | Vercel server environment only | ❌ unset (not needed — NVIDIA is working) |
 | `GEMINI_API_KEY` | Google AI Studio / Google Cloud (optional fallback) | Vercel server environment only | ❌ unset |
 
 ## Next-stage execution checklist
 
-1. Get an `NVIDIA_API_KEY` (build.nvidia.com → open any model page → "Get API Key") and add
-   it to `.env.local` — fastest path to a working import right now, since Groq/Gemini are
-   unset and xAI is unfunded. `console.groq.com` and Google AI Studio remain fine alternatives.
-2. Once a working extraction key is set, smoke-test end-to-end: sign in at `/login`, paste a
-   real Instagram/TikTok/YouTube/Pinterest link, confirm the extraction progress screen
-   completes and the review panel populates with a real aisle guess per ingredient, save the
-   recipe, assign it a collection, and add it to the weekly planner.
-3. Smoke-test the AI sous-chef on the recipe detail and cook-mode screens once a provider
-   key is set.
-4. Fix Google sign-in: either wait on/report Neon's shared-app OAuth misconfiguration, or
+1. Fix Google sign-in: either wait on/report Neon's shared-app OAuth misconfiguration, or
    register your own Google OAuth client and run `neon neon-auth oauth-provider update
    --provider-id google --oauth-client-id <id> --oauth-client-secret <secret>`.
-5. Rotate `NEON_AUTH_COOKIE_SECRET` to a freshly generated value before any production
-   deployment (the current one was generated in this dev session).
-6. Create a Vercel project connected to `danielzo0/omnicook` and add all the credentials
-   above to its environment.
-7. Test user isolation with two real accounts — since there's no RLS safety net on Neon, this
-   is the most important check: confirm the `/api/*` routes never leak one user's
+2. Connect the Vercel project to GitHub for automatic deploy-on-push (the CLI's auto-connect
+   failed during setup) — currently every change needs a manual `vercel deploy --prod` after
+   `git push`. Check the Vercel dashboard → Project → Settings → Git.
+3. Smoke-test the AI sous-chef on the recipe detail and cook-mode screens (uses the same
+   NVIDIA key/fix, but hasn't been exercised specifically).
+4. Test user isolation with two real accounts — since there's no RLS safety net on Neon, this
+   is the most important remaining check: confirm the `/api/*` routes never leak one user's
    recipes/collections/meal-plan to another.
-8. On an actual iPhone/Android browser, use "Add to Home Screen" and confirm the manifest
+5. On an actual iPhone/Android browser, use "Add to Home Screen" and confirm the manifest
    icon/name/standalone display work as expected.
-9. Decide what to do with the test account/recipe created during verification (see above).
+6. Decide what to do with the test account/recipes created during verification (`danzammit1@
+   gmail.com` — "Test Neon Recipe" and one real gochujang-pasta extraction, both in the
+   claimed production database).
+7. Optionally set `GROQ_API_KEY` or `GEMINI_API_KEY` for provider redundancy — not required
+   today since NVIDIA is confirmed working, but nice to have a second option.
 
 ## Validation still pending
 
-`npm run build` succeeds with zero environment variables set (demo mode) and with the real
-Neon credentials set. The full authenticated path is now genuinely verified live: sign-up,
-sign-in, session persistence, and `POST /api/recipes` as a real signed-in user, confirmed in
-a browser against the claimed Neon project. Still not exercised: Groq/Gemini extraction (the
-current `GROQ_API_KEY` value doesn't look valid), the AI sous-chef, and Google sign-in
-(blocked by the Neon-side OAuth bug above). Two-account isolation testing hasn't been done.
+The core product loop is now genuinely verified live in production, not just locally:
+sign-up, sign-in, session persistence, real AI extraction (NVIDIA, ~8-17s per call), the
+review screen, saving a recipe, and it persisting in the vault — all confirmed against
+https://omnicook-seven.vercel.app with real HTTP requests. Not yet exercised: the AI
+sous-chef specifically, Google sign-in (blocked by the Neon-side OAuth bug above), and
+two-account isolation testing.
