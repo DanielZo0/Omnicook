@@ -8,7 +8,10 @@ export async function extractWithGroq(sourceUrl: string | null, text: string): P
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new ExtractionProviderError('Groq is not configured.');
 
-  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  // llama-3.3-70b-versatile (an earlier default) was removed from Groq's
+  // catalog; gpt-oss-120b is a current general-purpose model that supports
+  // response_format: json_object.
+  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
