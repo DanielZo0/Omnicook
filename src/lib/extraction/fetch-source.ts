@@ -13,17 +13,36 @@ function looksLikeUrl(source: string) {
   }
 }
 
-function stripHtmlToText(html: string) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<[^>]+>/g, ' ')
+function decodeEntities(text: string) {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&#\d+;/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+// Instagram/Facebook/X (and similar) render an empty JS shell for logged-out
+// scrapers — the actual caption only exists in an og:description/description
+// <meta> attribute, which a plain tag-strip would discard along with the tag
+// itself. Pull it out first so social-media imports have real content to work with.
+function extractMetaDescription(html: string) {
+  const match = html.match(/<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]*content=["']([\s\S]*?)["'][^>]*\/?>/i)
+    ?? html.match(/<meta[^>]+content=["']([\s\S]*?)["'][^>]*(?:property|name)=["'](?:og:description|description)["'][^>]*\/?>/i);
+  return match ? decodeEntities(match[1]).trim() : '';
+}
+
+function stripHtmlToText(html: string) {
+  return decodeEntities(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<[^>]+>/g, ' '),
+  ).replace(/\s+/g, ' ').trim();
 }
 
 export type ExtractedSource = {
@@ -56,7 +75,12 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
       return { sourceUrl: trimmed, text: trimmed };
     }
     const html = await response.text();
-    const text = stripHtmlToText(html).slice(0, MAX_TEXT_CHARS);
+    const metaDescription = extractMetaDescription(html);
+    const bodyText = stripHtmlToText(html);
+    const combined = metaDescription && !bodyText.includes(metaDescription.slice(0, 40))
+      ? `${metaDescription}\n\n${bodyText}`
+      : bodyText;
+    const text = combined.slice(0, MAX_TEXT_CHARS);
     return { sourceUrl: trimmed, text: text || trimmed };
   } catch {
     return { sourceUrl: trimmed, text: trimmed };
