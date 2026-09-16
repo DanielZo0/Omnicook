@@ -1,3 +1,5 @@
+import { extractYoutubeVideoId, fetchYoutubeDescription } from './youtube';
+
 const FETCH_TIMEOUT_MS = 8_000;
 // Trimmed down from 20,000: real blog pages are mostly nav/ads/comments once
 // tags are stripped, and a smaller prompt is both faster and more focused for
@@ -61,6 +63,15 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
   const trimmed = source.trim();
   if (!looksLikeUrl(trimmed)) {
     return { sourceUrl: null, text: trimmed.slice(0, MAX_TEXT_CHARS) };
+  }
+
+  const videoId = extractYoutubeVideoId(trimmed);
+  if (videoId) {
+    const video = await fetchYoutubeDescription(videoId).catch(() => null);
+    if (video) {
+      const text = `${video.title}\n\n${video.description}`.slice(0, MAX_TEXT_CHARS);
+      return { sourceUrl: trimmed, text };
+    }
   }
 
   const controller = new AbortController();
