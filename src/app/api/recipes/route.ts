@@ -5,6 +5,7 @@ import { db, isDbConfigured } from '@/lib/db/client';
 import { recipeIngredients, recipes, recipeSteps } from '@/lib/db/schema';
 import { requireUserId } from '@/lib/auth/require-user';
 import { recipeSchema } from '@/lib/recipe-schema';
+import { ensureSeeded } from '@/lib/db/seed';
 
 export async function GET() {
   if (!isDbConfigured()) {
@@ -12,6 +13,8 @@ export async function GET() {
   }
   const userId = await requireUserId();
   if (!userId) return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
+
+  await ensureSeeded(userId);
 
   const rows = await db().select().from(recipes).where(eq(recipes.userId, userId)).orderBy(desc(recipes.createdAt));
   const recipeIds = rows.map((r) => r.id);

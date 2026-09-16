@@ -51,6 +51,11 @@ export const recipeSteps = pgTable('recipe_steps', {
   uniqueIndex('recipe_steps_recipe_id_position_idx').on(table.recipeId, table.position),
 ]);
 
+export const seededUsers = pgTable('seeded_users', {
+  userId: text('user_id').primaryKey(),
+  seededAt: timestamp('seeded_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const mealPlanItems = pgTable('meal_plan_items', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: text('user_id').notNull(),
