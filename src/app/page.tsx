@@ -57,6 +57,9 @@ export default function Home() {
   const signedIn = configured && !sessionLoading && Boolean(user);
 
   const [bootChecked, setBootChecked] = useState(false);
+  const [vaultScrolled, setVaultScrolled] = useState(0);
+  const [detailScrolled, setDetailScrolled] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(0);
   const [screen, setScreen] = useState<Screen>('vault');
   const [layout, setLayout] = useState<Layout>('grid');
   const [entryMode, setEntryMode] = useState<EntryMode>('paste');
@@ -94,6 +97,13 @@ export default function Home() {
     const seen = typeof window !== 'undefined' ? window.localStorage.getItem('omnicook_onboarded') : '1';
     if (!seen) setScreen('onboarding');
     setBootChecked(true);
+  }, []);
+
+  useEffect(() => {
+    function updateWidth() { setViewportWidth(window.innerWidth); }
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
   async function refreshVault() {
@@ -156,7 +166,7 @@ export default function Home() {
   const activeCollectionName = collectionFilter ? collections.find((c) => c.id === collectionFilter)?.name ?? collectionDefs.find((c) => c.id === collectionFilter)?.name : null;
 
   function go(next: Screen) { guardNavigate(() => { setStatus(null); setScreen(next); }); }
-  function openRecipe(id: string) { setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); go('detail'); }
+  function openRecipe(id: string) { setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); setDetailScrolled(0); go('detail'); }
   function openCollection(id: string) { setCollectionFilter(id); setQuery(''); go('search'); }
   function pickFilter(f: string) { setCollectionFilter(null); setFilter(f); }
   function startCook() { setCookStep(0); go('cook'); }
@@ -396,9 +406,12 @@ export default function Home() {
 
   if (!bootChecked) return <div style={s(`min-height:100dvh;background:${PAPER}`)} />;
 
-  const showTabs = (['vault', 'planner', 'grocery', 'profile'] as Screen[]).includes(screen);
+  const showTabs = (['vault', 'search', 'detail', 'planner', 'grocery', 'profile'] as Screen[]).includes(screen);
+  const isTablet = viewportWidth >= 700;
+  const shellMaxWidth = isTablet ? 840 : 480;
+  const gridColumns = isTablet ? 3 : 2;
 
-  return <main style={s(`min-height:100dvh;width:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;background:${PAPER};color:${INK};font-family:'DM Sans',system-ui,sans-serif;position:relative`)}>
+  return <main style={s(`height:100dvh;width:100%;max-width:${shellMaxWidth}px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:${PAPER};color:${INK};font-family:'DM Sans',system-ui,sans-serif;position:relative`)}>
     <InterstitialAd open={interstitialOpen} onClose={closeInterstitial} />
 
     {screen === 'onboarding' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:32px 26px 40px;box-sizing:border-box;background:${GREEN};color:#fffdf8`)}>
@@ -419,11 +432,15 @@ export default function Home() {
       <a href="/login" style={s('margin-top:6px;width:100%;padding:12px;border:0;background:transparent;color:#c9dcc5;font-size:13px;font-weight:600;text-align:center;text-decoration:none;box-sizing:border-box;display:block')}>I already have an account</a>
     </div>}
 
-    {screen === 'vault' && <div style={s('flex:1;overflow:auto;padding:20px 0 100px')}>
-      <div style={s('display:flex;align-items:center;justify-content:space-between;padding:0 20px 2px')}>
-        <span style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:21px")}>omni<i style={s(`color:${CORAL}`)}>cook</i></span>
-        <button onClick={() => go('profile')} style={s(`display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:50%;background:${CORAL};color:#fff;font-weight:700;font-size:13px`)}>{signedIn ? (user?.email ?? '?').slice(0, 2).toUpperCase() : '＋'}</button>
-      </div>
+    {screen === 'vault' && <div onScroll={(e) => setVaultScrolled(e.currentTarget.scrollTop)} style={s('flex:1;overflow:auto;padding:0 0 100px')}>
+      {(() => {
+        const t = Math.min(Math.max(vaultScrolled, 0), 60) / 60;
+        const avatarSize = 36 - t * 8;
+        return <div style={s(`position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:${20 - t * 8}px 20px ${2 + (1 - t) * 6}px;background:${PAPER}f2;backdrop-filter:blur(8px)`)}>
+          <span style={s(`font-family:'Playfair Display',serif;font-weight:700;font-size:${21 - t * 4}px;transition:font-size .1s`)}>omni<i style={s(`color:${CORAL}`)}>cook</i></span>
+          <button onClick={() => go('profile')} style={s(`display:grid;place-items:center;width:${avatarSize}px;height:${avatarSize}px;border:0;border-radius:50%;background:${CORAL};color:#fff;font-weight:700;font-size:13px;transition:width .1s,height .1s`)}>{signedIn ? (user?.email ?? '?').slice(0, 2).toUpperCase() : '＋'}</button>
+        </div>;
+      })()}
       <div style={s('padding:14px 20px 0')}>
         <div style={s('font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#6d806b')}>{signedIn ? 'Your personal cookbook' : configured ? 'Preview — sign in for your own vault' : 'Your personal cookbook'}</div>
         <div style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:31px;letter-spacing:-.8px;margin:5px 0 0")}>What are we cooking?</div>
@@ -464,7 +481,7 @@ export default function Home() {
 
       {loadingVault && <p style={s(`padding:0 20px;font-size:12.5px;color:${MUTED}`)}>Loading your vault…</p>}
 
-      {layout === 'grid' && <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:13px;padding:0 20px')}>
+      {layout === 'grid' && <div style={s(`display:grid;grid-template-columns:repeat(${gridColumns},1fr);gap:13px;padding:0 20px`)}>
         {filteredVault.map((r) => <button key={r.id} onClick={() => openRecipe(r.id)} style={s(`display:flex;flex-direction:column;padding:0;border:1px solid ${LINE};border-radius:15px;background:${CARD};overflow:hidden;text-align:left`)}>
           <span style={s('position:relative;display:block;width:100%;height:104px')}>
             {r.img && <img src={r.img} alt="" style={s('width:100%;height:104px;object-fit:cover;display:block')} />}
@@ -665,23 +682,29 @@ export default function Home() {
     </div>}
 
     {screen === 'detail' && active && <div style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
-      <div style={s('flex:1;overflow:auto')}>
-        <div style={s('position:relative')}>
-          {active.img && <img src={active.img} alt="" style={s('width:100%;height:250px;object-fit:cover;display:block')} />}
-          <div style={s('position:absolute;inset:0;background:linear-gradient(to top,#0e1a12e6 2%,#0e1a1200 55%)')} />
-          <div style={s('position:absolute;top:16px;left:18px;right:18px;display:flex;justify-content:space-between')}>
-            <button onClick={() => go('vault')} style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>‹</button>
-            {signedIn && <div style={s('display:flex;gap:8px')}>
-              <button onClick={openEditRecipe} aria-label="Edit recipe" style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>✎</button>
-              <button onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe" style={s(`width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px;color:${CORAL};opacity:${deletingRecipe ? 0.6 : 1}`)}>🗑</button>
-            </div>}
-          </div>
-          <div style={s('position:absolute;left:20px;right:20px;bottom:16px;color:#fffdf8;display:flex;flex-direction:column;gap:7px')}>
-            <span style={s('align-self:flex-start;padding:5px 10px;border-radius:20px;background:#fffdf8;color:#1c241d;font-size:10.5px;font-weight:700')}>{active.s}</span>
-            <span style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:26px;line-height:1.12")}>{active.t}</span>
-            <span style={s('font-size:12px;color:#e4ece0')}>◷ {active.time} · serves {active.n * servings}</span>
-          </div>
-        </div>
+      <div onScroll={(e) => setDetailScrolled(e.currentTarget.scrollTop)} style={s('flex:1;overflow:auto')}>
+        {(() => {
+          const t = Math.min(Math.max(detailScrolled, 0), 160) / 160;
+          const headerHeight = 250 - t * 178;
+          return <div style={s(`position:sticky;top:0;z-index:10;overflow:hidden;height:${headerHeight}px;background:${GREEN}`)}>
+            {active.img && <img src={active.img} alt="" style={s('width:100%;height:100%;object-fit:cover;display:block')} />}
+            <div style={s('position:absolute;inset:0;background:linear-gradient(to top,#0e1a12e6 2%,#0e1a1200 55%)')} />
+            <div style={s(`position:absolute;inset:0;background:${GREEN};opacity:${t}`)} />
+            <div style={s('position:absolute;top:16px;left:18px;right:18px;display:flex;justify-content:space-between')}>
+              <button onClick={() => go('vault')} style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px;flex:none')}>‹</button>
+              {signedIn && <div style={s('display:flex;gap:8px')}>
+                <button onClick={openEditRecipe} aria-label="Edit recipe" style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>✎</button>
+                <button onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe" style={s(`width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px;color:${CORAL};opacity:${deletingRecipe ? 0.6 : 1}`)}>🗑</button>
+              </div>}
+            </div>
+            <span style={s(`position:absolute;left:64px;right:18px;top:16px;height:36px;display:flex;align-items:center;color:#fffdf8;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:${t};pointer-events:none`)}>{active.t}</span>
+            <div style={s(`position:absolute;left:20px;right:20px;bottom:16px;color:#fffdf8;display:flex;flex-direction:column;gap:7px;opacity:${1 - t};pointer-events:${t > 0.5 ? 'none' : 'auto'}`)}>
+              <span style={s('align-self:flex-start;padding:5px 10px;border-radius:20px;background:#fffdf8;color:#1c241d;font-size:10.5px;font-weight:700')}>{active.s}</span>
+              <span style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:26px;line-height:1.12")}>{active.t}</span>
+              <span style={s('font-size:12px;color:#e4ece0')}>◷ {active.time} · serves {active.n * servings}</span>
+            </div>
+          </div>;
+        })()}
         {active.sourceUrl && <div style={s('padding:16px 20px 0')}>
           <a href={active.sourceUrl} target="_blank" rel="noreferrer" style={s(`display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid ${LINE};border-radius:14px;background:${CARD};text-decoration:none;color:${INK}`)}>
             <span style={s('display:flex;flex-direction:column;gap:2px')}><b style={s('font-size:12.5px')}>{active.c}</b><span style={s(`font-size:11px;color:${MUTED}`)}>View the original post</span></span>
@@ -700,7 +723,6 @@ export default function Home() {
           </div>
           <div style={s('margin-top:10px')}>
             {active.a.map((ingredient) => <div key={ingredient.name} style={s(`display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid ${LINE};font-size:13.5px`)}>
-              <span style={s('width:18px;height:18px;border:1.5px solid #cfd8c8;border-radius:5px;flex:none')} />
               <b style={s(`display:inline-block;width:62px;color:${CORAL};font-size:13px`)}>{scaleAmount(ingredient.amt, servings)}</b>
               <span>{ingredient.name}</span>
             </div>)}
@@ -720,10 +742,10 @@ export default function Home() {
           </div>
           {chefReply && <p style={s('font-size:12.5px;line-height:1.5;color:#405642;margin:11px 0 0')}>{chefReply}</p>}
         </div>
-      </div>
-      <div style={s(`padding:12px 20px 30px;border-top:1px solid ${LINE};background:${PAPER};display:flex;gap:10px`)}>
-        <button onClick={() => go('planner')} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>▦ Plan</button>
-        <button onClick={startCook} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700`)}>Start cooking</button>
+        <div style={s('padding:8px 20px 24px;display:flex;gap:10px')}>
+          <button onClick={() => go('planner')} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>▦ Plan</button>
+          <button onClick={startCook} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700`)}>Start cooking</button>
+        </div>
       </div>
     </div>}
 
@@ -818,7 +840,7 @@ export default function Home() {
         </div>
         {collections.length > 0 && <>
           <div style={s("padding:26px 20px 10px;font-family:'Playfair Display',serif;font-size:18px;font-weight:700")}>Collections</div>
-          <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 20px')}>
+          <div style={s(`display:grid;grid-template-columns:repeat(${gridColumns},1fr);gap:12px;padding:0 20px`)}>
             {collections.map((c) => <button key={c.id} onClick={() => openCollection(c.id)} style={s(`display:flex;flex-direction:column;justify-content:space-between;gap:26px;padding:14px;border:1px solid ${LINE};border-radius:16px;background:${c.bg};text-align:left`)}>
               <span style={s('font-size:18px')}>{c.glyph}</span>
               <span style={s('display:flex;flex-direction:column;gap:2px')}><b style={s('font-size:14px')}>{c.name}</b><span style={s(`font-size:11.5px;color:${MUTED}`)}>{c.count} recipes</span></span>
@@ -838,12 +860,12 @@ export default function Home() {
       <BannerAd unit={GAM_BANNER_TABBAR_UNIT} sizes={[[320, 50]]} height={50} />
     </div>}
 
-    {showTabs && <div style={s(`position:relative;z-index:30;display:flex;align-items:flex-start;justify-content:space-around;padding:9px 8px calc(env(safe-area-inset-bottom,0px) + 18px);border-top:1px solid ${LINE};background:#fffdf8f2;backdrop-filter:blur(12px)`)}>
-      {[{ label: 'Vault', glyph: '◈', screen: 'vault' as Screen }, { label: 'Plan', glyph: '▦', screen: 'planner' as Screen }, { label: '', glyph: '', screen: null }, { label: 'List', glyph: '☰', screen: 'grocery' as Screen }, { label: 'You', glyph: '◉', screen: 'profile' as Screen }].map((t, i) => t.screen ? <button key={i} onClick={() => go(t.screen as Screen)} style={s(`display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;padding:6px 0;border:0;background:transparent;color:${screen === t.screen ? GREEN : '#9aa398'}`)}>
-        <span style={s('font-size:17px')}>{t.glyph}</span>
-        <span style={s('font-size:10px;font-weight:700')}>{t.label}</span>
+    {showTabs && <div style={s(`position:relative;z-index:30;display:flex;align-items:flex-start;justify-content:space-around;padding:10px 8px calc(env(safe-area-inset-bottom,0px) + 18px);border-top:1px solid ${LINE};background:#fffdf8f2;backdrop-filter:blur(12px)`)}>
+      {[{ label: 'Vault', glyph: '◈', screen: 'vault' as Screen }, { label: 'Plan', glyph: '▦', screen: 'planner' as Screen }, { label: '', glyph: '', screen: null }, { label: 'List', glyph: '☰', screen: 'grocery' as Screen }, { label: 'You', glyph: '◉', screen: 'profile' as Screen }].map((t, i) => t.screen ? <button key={i} onClick={() => go(t.screen as Screen)} style={s(`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;flex:1;min-height:52px;padding:8px 0;border:0;background:transparent;color:${screen === t.screen ? GREEN : '#9aa398'}`)}>
+        <span style={s('font-size:23px')}>{t.glyph}</span>
+        <span style={s('font-size:11.5px;font-weight:700')}>{t.label}</span>
       </button> : <span key={i} style={s('flex:1')} />)}
-      <button onClick={() => go('import')} style={s(`position:absolute;left:50%;top:-22px;transform:translateX(-50%);display:grid;place-items:center;width:54px;height:54px;border:4px solid ${PAPER};border-radius:50%;background:${GREEN};color:#fff;font-size:22px;font-weight:700;box-shadow:0 6px 18px #244f3c4d`)}>+</button>
+      <button onClick={() => go('import')} style={s(`position:absolute;left:50%;top:-26px;transform:translateX(-50%);display:grid;place-items:center;width:64px;height:64px;border:4px solid ${PAPER};border-radius:50%;background:${GREEN};color:#fff;font-size:26px;font-weight:700;box-shadow:0 6px 18px #244f3c4d`)}>+</button>
     </div>}
   </main>;
 }
