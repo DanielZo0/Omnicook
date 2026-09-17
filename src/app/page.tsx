@@ -57,6 +57,7 @@ export default function Home() {
   const signedIn = configured && !sessionLoading && Boolean(user);
 
   const [bootChecked, setBootChecked] = useState(false);
+  const [vaultScrolled, setVaultScrolled] = useState(0);
   const [screen, setScreen] = useState<Screen>('vault');
   const [layout, setLayout] = useState<Layout>('grid');
   const [entryMode, setEntryMode] = useState<EntryMode>('paste');
@@ -396,9 +397,9 @@ export default function Home() {
 
   if (!bootChecked) return <div style={s(`min-height:100dvh;background:${PAPER}`)} />;
 
-  const showTabs = (['vault', 'planner', 'grocery', 'profile'] as Screen[]).includes(screen);
+  const showTabs = (['vault', 'search', 'detail', 'planner', 'grocery', 'profile'] as Screen[]).includes(screen);
 
-  return <main style={s(`min-height:100dvh;width:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;background:${PAPER};color:${INK};font-family:'DM Sans',system-ui,sans-serif;position:relative`)}>
+  return <main style={s(`height:100dvh;width:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:${PAPER};color:${INK};font-family:'DM Sans',system-ui,sans-serif;position:relative`)}>
     <InterstitialAd open={interstitialOpen} onClose={closeInterstitial} />
 
     {screen === 'onboarding' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:32px 26px 40px;box-sizing:border-box;background:${GREEN};color:#fffdf8`)}>
@@ -419,11 +420,15 @@ export default function Home() {
       <a href="/login" style={s('margin-top:6px;width:100%;padding:12px;border:0;background:transparent;color:#c9dcc5;font-size:13px;font-weight:600;text-align:center;text-decoration:none;box-sizing:border-box;display:block')}>I already have an account</a>
     </div>}
 
-    {screen === 'vault' && <div style={s('flex:1;overflow:auto;padding:20px 0 100px')}>
-      <div style={s('display:flex;align-items:center;justify-content:space-between;padding:0 20px 2px')}>
-        <span style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:21px")}>omni<i style={s(`color:${CORAL}`)}>cook</i></span>
-        <button onClick={() => go('profile')} style={s(`display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:50%;background:${CORAL};color:#fff;font-weight:700;font-size:13px`)}>{signedIn ? (user?.email ?? '?').slice(0, 2).toUpperCase() : '＋'}</button>
-      </div>
+    {screen === 'vault' && <div onScroll={(e) => setVaultScrolled(e.currentTarget.scrollTop)} style={s('flex:1;overflow:auto;padding:0 0 100px')}>
+      {(() => {
+        const t = Math.min(Math.max(vaultScrolled, 0), 60) / 60;
+        const avatarSize = 36 - t * 8;
+        return <div style={s(`position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:${20 - t * 8}px 20px ${2 + (1 - t) * 6}px;background:${PAPER}f2;backdrop-filter:blur(8px)`)}>
+          <span style={s(`font-family:'Playfair Display',serif;font-weight:700;font-size:${21 - t * 4}px;transition:font-size .1s`)}>omni<i style={s(`color:${CORAL}`)}>cook</i></span>
+          <button onClick={() => go('profile')} style={s(`display:grid;place-items:center;width:${avatarSize}px;height:${avatarSize}px;border:0;border-radius:50%;background:${CORAL};color:#fff;font-weight:700;font-size:13px;transition:width .1s,height .1s`)}>{signedIn ? (user?.email ?? '?').slice(0, 2).toUpperCase() : '＋'}</button>
+        </div>;
+      })()}
       <div style={s('padding:14px 20px 0')}>
         <div style={s('font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#6d806b')}>{signedIn ? 'Your personal cookbook' : configured ? 'Preview — sign in for your own vault' : 'Your personal cookbook'}</div>
         <div style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:31px;letter-spacing:-.8px;margin:5px 0 0")}>What are we cooking?</div>
@@ -700,7 +705,6 @@ export default function Home() {
           </div>
           <div style={s('margin-top:10px')}>
             {active.a.map((ingredient) => <div key={ingredient.name} style={s(`display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid ${LINE};font-size:13.5px`)}>
-              <span style={s('width:18px;height:18px;border:1.5px solid #cfd8c8;border-radius:5px;flex:none')} />
               <b style={s(`display:inline-block;width:62px;color:${CORAL};font-size:13px`)}>{scaleAmount(ingredient.amt, servings)}</b>
               <span>{ingredient.name}</span>
             </div>)}
@@ -838,12 +842,12 @@ export default function Home() {
       <BannerAd unit={GAM_BANNER_TABBAR_UNIT} sizes={[[320, 50]]} height={50} />
     </div>}
 
-    {showTabs && <div style={s(`position:relative;z-index:30;display:flex;align-items:flex-start;justify-content:space-around;padding:9px 8px calc(env(safe-area-inset-bottom,0px) + 18px);border-top:1px solid ${LINE};background:#fffdf8f2;backdrop-filter:blur(12px)`)}>
-      {[{ label: 'Vault', glyph: '◈', screen: 'vault' as Screen }, { label: 'Plan', glyph: '▦', screen: 'planner' as Screen }, { label: '', glyph: '', screen: null }, { label: 'List', glyph: '☰', screen: 'grocery' as Screen }, { label: 'You', glyph: '◉', screen: 'profile' as Screen }].map((t, i) => t.screen ? <button key={i} onClick={() => go(t.screen as Screen)} style={s(`display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;padding:6px 0;border:0;background:transparent;color:${screen === t.screen ? GREEN : '#9aa398'}`)}>
-        <span style={s('font-size:17px')}>{t.glyph}</span>
-        <span style={s('font-size:10px;font-weight:700')}>{t.label}</span>
+    {showTabs && <div style={s(`position:relative;z-index:30;display:flex;align-items:flex-start;justify-content:space-around;padding:10px 8px calc(env(safe-area-inset-bottom,0px) + 18px);border-top:1px solid ${LINE};background:#fffdf8f2;backdrop-filter:blur(12px)`)}>
+      {[{ label: 'Vault', glyph: '◈', screen: 'vault' as Screen }, { label: 'Plan', glyph: '▦', screen: 'planner' as Screen }, { label: '', glyph: '', screen: null }, { label: 'List', glyph: '☰', screen: 'grocery' as Screen }, { label: 'You', glyph: '◉', screen: 'profile' as Screen }].map((t, i) => t.screen ? <button key={i} onClick={() => go(t.screen as Screen)} style={s(`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;flex:1;min-height:52px;padding:8px 0;border:0;background:transparent;color:${screen === t.screen ? GREEN : '#9aa398'}`)}>
+        <span style={s('font-size:23px')}>{t.glyph}</span>
+        <span style={s('font-size:11.5px;font-weight:700')}>{t.label}</span>
       </button> : <span key={i} style={s('flex:1')} />)}
-      <button onClick={() => go('import')} style={s(`position:absolute;left:50%;top:-22px;transform:translateX(-50%);display:grid;place-items:center;width:54px;height:54px;border:4px solid ${PAPER};border-radius:50%;background:${GREEN};color:#fff;font-size:22px;font-weight:700;box-shadow:0 6px 18px #244f3c4d`)}>+</button>
+      <button onClick={() => go('import')} style={s(`position:absolute;left:50%;top:-26px;transform:translateX(-50%);display:grid;place-items:center;width:64px;height:64px;border:4px solid ${PAPER};border-radius:50%;background:${GREEN};color:#fff;font-size:26px;font-weight:700;box-shadow:0 6px 18px #244f3c4d`)}>+</button>
     </div>}
   </main>;
 }
