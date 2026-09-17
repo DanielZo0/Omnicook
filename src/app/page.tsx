@@ -58,6 +58,7 @@ export default function Home() {
 
   const [bootChecked, setBootChecked] = useState(false);
   const [vaultScrolled, setVaultScrolled] = useState(0);
+  const [detailScrolled, setDetailScrolled] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [screen, setScreen] = useState<Screen>('vault');
   const [layout, setLayout] = useState<Layout>('grid');
@@ -165,7 +166,7 @@ export default function Home() {
   const activeCollectionName = collectionFilter ? collections.find((c) => c.id === collectionFilter)?.name ?? collectionDefs.find((c) => c.id === collectionFilter)?.name : null;
 
   function go(next: Screen) { guardNavigate(() => { setStatus(null); setScreen(next); }); }
-  function openRecipe(id: string) { setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); go('detail'); }
+  function openRecipe(id: string) { setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); setDetailScrolled(0); go('detail'); }
   function openCollection(id: string) { setCollectionFilter(id); setQuery(''); go('search'); }
   function pickFilter(f: string) { setCollectionFilter(null); setFilter(f); }
   function startCook() { setCookStep(0); go('cook'); }
@@ -681,23 +682,29 @@ export default function Home() {
     </div>}
 
     {screen === 'detail' && active && <div style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
-      <div style={s('flex:1;overflow:auto')}>
-        <div style={s('position:relative')}>
-          {active.img && <img src={active.img} alt="" style={s('width:100%;height:250px;object-fit:cover;display:block')} />}
-          <div style={s('position:absolute;inset:0;background:linear-gradient(to top,#0e1a12e6 2%,#0e1a1200 55%)')} />
-          <div style={s('position:absolute;top:16px;left:18px;right:18px;display:flex;justify-content:space-between')}>
-            <button onClick={() => go('vault')} style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>‹</button>
-            {signedIn && <div style={s('display:flex;gap:8px')}>
-              <button onClick={openEditRecipe} aria-label="Edit recipe" style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>✎</button>
-              <button onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe" style={s(`width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px;color:${CORAL};opacity:${deletingRecipe ? 0.6 : 1}`)}>🗑</button>
-            </div>}
-          </div>
-          <div style={s('position:absolute;left:20px;right:20px;bottom:16px;color:#fffdf8;display:flex;flex-direction:column;gap:7px')}>
-            <span style={s('align-self:flex-start;padding:5px 10px;border-radius:20px;background:#fffdf8;color:#1c241d;font-size:10.5px;font-weight:700')}>{active.s}</span>
-            <span style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:26px;line-height:1.12")}>{active.t}</span>
-            <span style={s('font-size:12px;color:#e4ece0')}>◷ {active.time} · serves {active.n * servings}</span>
-          </div>
-        </div>
+      <div onScroll={(e) => setDetailScrolled(e.currentTarget.scrollTop)} style={s('flex:1;overflow:auto')}>
+        {(() => {
+          const t = Math.min(Math.max(detailScrolled, 0), 160) / 160;
+          const headerHeight = 250 - t * 178;
+          return <div style={s(`position:sticky;top:0;z-index:10;overflow:hidden;height:${headerHeight}px;background:${GREEN}`)}>
+            {active.img && <img src={active.img} alt="" style={s('width:100%;height:100%;object-fit:cover;display:block')} />}
+            <div style={s('position:absolute;inset:0;background:linear-gradient(to top,#0e1a12e6 2%,#0e1a1200 55%)')} />
+            <div style={s(`position:absolute;inset:0;background:${GREEN};opacity:${t}`)} />
+            <div style={s('position:absolute;top:16px;left:18px;right:18px;display:flex;justify-content:space-between')}>
+              <button onClick={() => go('vault')} style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px;flex:none')}>‹</button>
+              {signedIn && <div style={s('display:flex;gap:8px')}>
+                <button onClick={openEditRecipe} aria-label="Edit recipe" style={s('width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px')}>✎</button>
+                <button onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe" style={s(`width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px;color:${CORAL};opacity:${deletingRecipe ? 0.6 : 1}`)}>🗑</button>
+              </div>}
+            </div>
+            <span style={s(`position:absolute;left:64px;right:18px;top:16px;height:36px;display:flex;align-items:center;color:#fffdf8;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:${t};pointer-events:none`)}>{active.t}</span>
+            <div style={s(`position:absolute;left:20px;right:20px;bottom:16px;color:#fffdf8;display:flex;flex-direction:column;gap:7px;opacity:${1 - t};pointer-events:${t > 0.5 ? 'none' : 'auto'}`)}>
+              <span style={s('align-self:flex-start;padding:5px 10px;border-radius:20px;background:#fffdf8;color:#1c241d;font-size:10.5px;font-weight:700')}>{active.s}</span>
+              <span style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:26px;line-height:1.12")}>{active.t}</span>
+              <span style={s('font-size:12px;color:#e4ece0')}>◷ {active.time} · serves {active.n * servings}</span>
+            </div>
+          </div>;
+        })()}
         {active.sourceUrl && <div style={s('padding:16px 20px 0')}>
           <a href={active.sourceUrl} target="_blank" rel="noreferrer" style={s(`display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid ${LINE};border-radius:14px;background:${CARD};text-decoration:none;color:${INK}`)}>
             <span style={s('display:flex;flex-direction:column;gap:2px')}><b style={s('font-size:12.5px')}>{active.c}</b><span style={s(`font-size:11px;color:${MUTED}`)}>View the original post</span></span>
@@ -735,10 +742,10 @@ export default function Home() {
           </div>
           {chefReply && <p style={s('font-size:12.5px;line-height:1.5;color:#405642;margin:11px 0 0')}>{chefReply}</p>}
         </div>
-      </div>
-      <div style={s(`padding:12px 20px 30px;border-top:1px solid ${LINE};background:${PAPER};display:flex;gap:10px`)}>
-        <button onClick={() => go('planner')} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>▦ Plan</button>
-        <button onClick={startCook} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700`)}>Start cooking</button>
+        <div style={s('padding:8px 20px 24px;display:flex;gap:10px')}>
+          <button onClick={() => go('planner')} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>▦ Plan</button>
+          <button onClick={startCook} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700`)}>Start cooking</button>
+        </div>
       </div>
     </div>}
 
