@@ -13,6 +13,10 @@ import {
   updateRecipe, upsertMealPlanItem, type Collection, type MealPlanItem, type VaultRecipe,
 } from '@/lib/api/client';
 import type { RecipeDraft } from '@/lib/recipe-schema';
+import { BannerAd } from '@/components/ads/BannerAd';
+import { InterstitialAd } from '@/components/ads/InterstitialAd';
+import { useInterstitial } from '@/lib/ads/useInterstitial';
+import { GAM_BANNER_DETAIL_UNIT, GAM_BANNER_TABBAR_UNIT } from '@/lib/ads/gpt';
 
 type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
 type Layout = 'grid' | 'feed' | 'editorial';
@@ -84,6 +88,7 @@ export default function Home() {
   const [creatingCollection, setCreatingCollection] = useState(false);
   const [deletingRecipe, setDeletingRecipe] = useState(false);
   const extractTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { interstitialOpen, guardNavigate, closeInterstitial } = useInterstitial();
 
   useEffect(() => {
     const seen = typeof window !== 'undefined' ? window.localStorage.getItem('omnicook_onboarded') : '1';
@@ -150,7 +155,7 @@ export default function Home() {
     .filter((c) => c.count > 0), [collectionDefs, recipes]);
   const activeCollectionName = collectionFilter ? collections.find((c) => c.id === collectionFilter)?.name ?? collectionDefs.find((c) => c.id === collectionFilter)?.name : null;
 
-  function go(next: Screen) { setStatus(null); setScreen(next); }
+  function go(next: Screen) { guardNavigate(() => { setStatus(null); setScreen(next); }); }
   function openRecipe(id: string) { setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); go('detail'); }
   function openCollection(id: string) { setCollectionFilter(id); setQuery(''); go('search'); }
   function pickFilter(f: string) { setCollectionFilter(null); setFilter(f); }
@@ -394,6 +399,7 @@ export default function Home() {
   const showTabs = (['vault', 'planner', 'grocery', 'profile'] as Screen[]).includes(screen);
 
   return <main style={s(`min-height:100dvh;width:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;background:${PAPER};color:${INK};font-family:'DM Sans',system-ui,sans-serif;position:relative`)}>
+    <InterstitialAd open={interstitialOpen} onClose={closeInterstitial} />
 
     {screen === 'onboarding' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:32px 26px 40px;box-sizing:border-box;background:${GREEN};color:#fffdf8`)}>
       <div style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:30px")}>omni<i style={s(`color:${LIME}`)}>cook</i></div>
@@ -682,6 +688,9 @@ export default function Home() {
             <span style={s(`font-size:13px;color:${GREEN}`)}>↗</span>
           </a>
         </div>}
+        <div style={s('padding:16px 20px 0')}>
+          <BannerAd unit={GAM_BANNER_DETAIL_UNIT} sizes={[[320, 50]]} height={50} />
+        </div>
         <div style={s('padding:20px 20px 0')}>
           <div style={s('display:flex;align-items:center;justify-content:space-between')}>
             <h3 style={s("font-family:'Playfair Display',serif;font-size:19px;margin:0")}>Ingredients</h3>
@@ -823,6 +832,10 @@ export default function Home() {
           </div>)}
         </div>
       </>}
+    </div>}
+
+    {showTabs && <div style={s('display:flex;justify-content:center;padding:6px 8px 0;background:#fffdf8f2')}>
+      <BannerAd unit={GAM_BANNER_TABBAR_UNIT} sizes={[[320, 50]]} height={50} />
     </div>}
 
     {showTabs && <div style={s(`position:relative;z-index:30;display:flex;align-items:flex-start;justify-content:space-around;padding:9px 8px calc(env(safe-area-inset-bottom,0px) + 18px);border-top:1px solid ${LINE};background:#fffdf8f2;backdrop-filter:blur(12px)`)}>
