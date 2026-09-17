@@ -58,6 +58,7 @@ export default function Home() {
 
   const [bootChecked, setBootChecked] = useState(false);
   const [vaultScrolled, setVaultScrolled] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(0);
   const [screen, setScreen] = useState<Screen>('vault');
   const [layout, setLayout] = useState<Layout>('grid');
   const [entryMode, setEntryMode] = useState<EntryMode>('paste');
@@ -95,6 +96,13 @@ export default function Home() {
     const seen = typeof window !== 'undefined' ? window.localStorage.getItem('omnicook_onboarded') : '1';
     if (!seen) setScreen('onboarding');
     setBootChecked(true);
+  }, []);
+
+  useEffect(() => {
+    function updateWidth() { setViewportWidth(window.innerWidth); }
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
   async function refreshVault() {
@@ -398,8 +406,11 @@ export default function Home() {
   if (!bootChecked) return <div style={s(`min-height:100dvh;background:${PAPER}`)} />;
 
   const showTabs = (['vault', 'search', 'detail', 'planner', 'grocery', 'profile'] as Screen[]).includes(screen);
+  const isTablet = viewportWidth >= 700;
+  const shellMaxWidth = isTablet ? 840 : 480;
+  const gridColumns = isTablet ? 3 : 2;
 
-  return <main style={s(`height:100dvh;width:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:${PAPER};color:${INK};font-family:'DM Sans',system-ui,sans-serif;position:relative`)}>
+  return <main style={s(`height:100dvh;width:100%;max-width:${shellMaxWidth}px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:${PAPER};color:${INK};font-family:'DM Sans',system-ui,sans-serif;position:relative`)}>
     <InterstitialAd open={interstitialOpen} onClose={closeInterstitial} />
 
     {screen === 'onboarding' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:32px 26px 40px;box-sizing:border-box;background:${GREEN};color:#fffdf8`)}>
@@ -469,7 +480,7 @@ export default function Home() {
 
       {loadingVault && <p style={s(`padding:0 20px;font-size:12.5px;color:${MUTED}`)}>Loading your vault…</p>}
 
-      {layout === 'grid' && <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:13px;padding:0 20px')}>
+      {layout === 'grid' && <div style={s(`display:grid;grid-template-columns:repeat(${gridColumns},1fr);gap:13px;padding:0 20px`)}>
         {filteredVault.map((r) => <button key={r.id} onClick={() => openRecipe(r.id)} style={s(`display:flex;flex-direction:column;padding:0;border:1px solid ${LINE};border-radius:15px;background:${CARD};overflow:hidden;text-align:left`)}>
           <span style={s('position:relative;display:block;width:100%;height:104px')}>
             {r.img && <img src={r.img} alt="" style={s('width:100%;height:104px;object-fit:cover;display:block')} />}
@@ -822,7 +833,7 @@ export default function Home() {
         </div>
         {collections.length > 0 && <>
           <div style={s("padding:26px 20px 10px;font-family:'Playfair Display',serif;font-size:18px;font-weight:700")}>Collections</div>
-          <div style={s('display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 20px')}>
+          <div style={s(`display:grid;grid-template-columns:repeat(${gridColumns},1fr);gap:12px;padding:0 20px`)}>
             {collections.map((c) => <button key={c.id} onClick={() => openCollection(c.id)} style={s(`display:flex;flex-direction:column;justify-content:space-between;gap:26px;padding:14px;border:1px solid ${LINE};border-radius:16px;background:${c.bg};text-align:left`)}>
               <span style={s('font-size:18px')}>{c.glyph}</span>
               <span style={s('display:flex;flex-direction:column;gap:2px')}><b style={s('font-size:14px')}>{c.name}</b><span style={s(`font-size:11.5px;color:${MUTED}`)}>{c.count} recipes</span></span>
