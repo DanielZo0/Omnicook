@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type UIEvent } from 'react';
 import { s } from '@/lib/mobile/style';
 import {
   COLLECTION_GLYPHS, COLLECTION_PALETTE, DAYS, DEMO_COLLECTIONS, DEMO_RECIPES,
@@ -164,6 +164,19 @@ export default function Home() {
     .map((c, i) => ({ ...c, count: recipes.filter((r) => r.collectionId === c.id).length, glyph: COLLECTION_GLYPHS[i % COLLECTION_GLYPHS.length], bg: COLLECTION_PALETTE[i % COLLECTION_PALETTE.length] }))
     .filter((c) => c.count > 0), [collectionDefs, recipes]);
   const activeCollectionName = collectionFilter ? collections.find((c) => c.id === collectionFilter)?.name ?? collectionDefs.find((c) => c.id === collectionFilter)?.name : null;
+
+  function useScrollThrottle(setValue: (top: number) => void) {
+    const pending = useRef(false);
+    const latest = useRef(0);
+    return (e: UIEvent<HTMLDivElement>) => {
+      latest.current = e.currentTarget.scrollTop;
+      if (pending.current) return;
+      pending.current = true;
+      requestAnimationFrame(() => { setValue(latest.current); pending.current = false; });
+    };
+  }
+  const onVaultScroll = useScrollThrottle(setVaultScrolled);
+  const onDetailScroll = useScrollThrottle(setDetailScrolled);
 
   function go(next: Screen) { guardNavigate(() => { setStatus(null); setScreen(next); }); }
   function openRecipe(id: string) { setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); setDetailScrolled(0); go('detail'); }
@@ -432,13 +445,13 @@ export default function Home() {
       <a href="/login" style={s('margin-top:6px;width:100%;padding:12px;border:0;background:transparent;color:#c9dcc5;font-size:13px;font-weight:600;text-align:center;text-decoration:none;box-sizing:border-box;display:block')}>I already have an account</a>
     </div>}
 
-    {screen === 'vault' && <div onScroll={(e) => setVaultScrolled(e.currentTarget.scrollTop)} style={s('flex:1;overflow:auto;padding:0 0 100px')}>
+    {screen === 'vault' && <div onScroll={onVaultScroll} style={s('flex:1;overflow:auto;padding:0 0 100px')}>
       {(() => {
         const t = Math.min(Math.max(vaultScrolled, 0), 60) / 60;
         const avatarSize = 36 - t * 8;
-        return <div style={s(`position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:${20 - t * 8}px 20px ${2 + (1 - t) * 6}px;background:${PAPER}f2;backdrop-filter:blur(8px)`)}>
-          <span style={s(`font-family:'Playfair Display',serif;font-weight:700;font-size:${21 - t * 4}px;transition:font-size .1s`)}>omni<i style={s(`color:${CORAL}`)}>cook</i></span>
-          <button onClick={() => go('profile')} style={s(`display:grid;place-items:center;width:${avatarSize}px;height:${avatarSize}px;border:0;border-radius:50%;background:${CORAL};color:#fff;font-weight:700;font-size:13px;transition:width .1s,height .1s`)}>{signedIn ? (user?.email ?? '?').slice(0, 2).toUpperCase() : '＋'}</button>
+        return <div style={s(`position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:${20 - t * 8}px 20px ${2 + (1 - t) * 6}px;background:${PAPER}`)}>
+          <span style={s(`font-family:'Playfair Display',serif;font-weight:700;font-size:${21 - t * 4}px`)}>omni<i style={s(`color:${CORAL}`)}>cook</i></span>
+          <button onClick={() => go('profile')} style={s(`display:grid;place-items:center;width:${avatarSize}px;height:${avatarSize}px;border:0;border-radius:50%;background:${CORAL};color:#fff;font-weight:700;font-size:13px`)}>{signedIn ? (user?.email ?? '?').slice(0, 2).toUpperCase() : '＋'}</button>
         </div>;
       })()}
       <div style={s('padding:14px 20px 0')}>
@@ -682,10 +695,11 @@ export default function Home() {
     </div>}
 
     {screen === 'detail' && active && <div style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
-      <div onScroll={(e) => setDetailScrolled(e.currentTarget.scrollTop)} style={s('flex:1;overflow:auto')}>
+      <div onScroll={onDetailScroll} style={s('flex:1;overflow:auto')}>
         {(() => {
           const t = Math.min(Math.max(detailScrolled, 0), 160) / 160;
           const headerHeight = 250 - t * 178;
+          const titleRight = signedIn ? 106 : 18;
           return <div style={s(`position:sticky;top:0;z-index:10;overflow:hidden;height:${headerHeight}px;background:${GREEN}`)}>
             {active.img && <img src={active.img} alt="" style={s('width:100%;height:100%;object-fit:cover;display:block')} />}
             <div style={s('position:absolute;inset:0;background:linear-gradient(to top,#0e1a12e6 2%,#0e1a1200 55%)')} />
@@ -697,7 +711,7 @@ export default function Home() {
                 <button onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe" style={s(`width:36px;height:36px;border:0;border-radius:50%;background:#fffdf8e8;font-size:15px;color:${CORAL};opacity:${deletingRecipe ? 0.6 : 1}`)}>🗑</button>
               </div>}
             </div>
-            <span style={s(`position:absolute;left:64px;right:18px;top:16px;height:36px;display:flex;align-items:center;color:#fffdf8;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:${t};pointer-events:none`)}>{active.t}</span>
+            <span style={s(`position:absolute;left:64px;right:${titleRight}px;top:16px;height:36px;display:flex;align-items:center;color:#fffdf8;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:${t};pointer-events:none`)}>{active.t}</span>
             <div style={s(`position:absolute;left:20px;right:20px;bottom:16px;color:#fffdf8;display:flex;flex-direction:column;gap:7px;opacity:${1 - t};pointer-events:${t > 0.5 ? 'none' : 'auto'}`)}>
               <span style={s('align-self:flex-start;padding:5px 10px;border-radius:20px;background:#fffdf8;color:#1c241d;font-size:10.5px;font-weight:700')}>{active.s}</span>
               <span style={s("font-family:'Playfair Display',serif;font-weight:700;font-size:26px;line-height:1.12")}>{active.t}</span>
