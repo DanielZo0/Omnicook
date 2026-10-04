@@ -9,7 +9,6 @@ export type VaultRecipe = {
   title: string;
   creator: string | null;
   sourceUrl: string | null;
-  imageUrl: string | null;
   category: string;
   prepMinutes: number | null;
   cookMinutes: number | null;
@@ -47,14 +46,14 @@ export async function listRecipes(): Promise<VaultRecipe[]> {
   return data.recipes;
 }
 
-export async function createRecipeFromDraft(draft: RecipeDraft, sourceUrl: string | null, imageUrl: string | null, collectionId: string | null = null): Promise<void> {
+export async function createRecipeFromDraft(draft: RecipeDraft, sourceUrl: string | null, collectionId: string | null = null): Promise<void> {
   await callApi('/api/recipes', {
     method: 'POST',
-    body: JSON.stringify({ draft, sourceUrl, imageUrl, collectionId }),
+    body: JSON.stringify({ draft, sourceUrl, collectionId }),
   });
 }
 
-export async function updateRecipe(id: string, updates: { draft?: RecipeDraft; sourceUrl?: string | null; imageUrl?: string | null; collectionId?: string | null }): Promise<void> {
+export async function updateRecipe(id: string, updates: { draft?: RecipeDraft; sourceUrl?: string | null; collectionId?: string | null }): Promise<void> {
   await callApi(`/api/recipes/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(updates),

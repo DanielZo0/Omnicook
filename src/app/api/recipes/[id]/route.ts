@@ -5,12 +5,10 @@ import { db, isDbConfigured } from '@/lib/db/client';
 import { recipeIngredients, recipes, recipeSteps } from '@/lib/db/schema';
 import { requireUserId } from '@/lib/auth/require-user';
 import { recipeSchema } from '@/lib/recipe-schema';
-import { findOwnedCollection } from '@/lib/db/ownership';
 
 const updateRequestSchema = z.object({
   draft: recipeSchema.optional(),
   sourceUrl: z.string().nullable().optional(),
-  imageUrl: z.string().nullable().optional(),
   collectionId: z.string().uuid().nullable().optional(),
 });
 
@@ -24,15 +22,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const parsed = updateRequestSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ ok: false, message: 'Invalid update payload.' }, { status: 400 });
-  const { draft, sourceUrl, imageUrl, collectionId } = parsed.data;
+  const { draft, sourceUrl, collectionId } = parsed.data;
 
   const [existing] = await db().select({ id: recipes.id }).from(recipes)
     .where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
   if (!existing) return NextResponse.json({ ok: false, message: 'Recipe not found.' }, { status: 404 });
 
-
-  const collection = collectionId ? await findOwnedCollection(userId, collectionId) : null;
-  if (collectionId && !collection) return NextResponse.json({ ok: false, message: 'Collection not found.' }, { status: 404 });
   const updates: Partial<typeof recipes.$inferInsert> = { updatedAt: new Date() };
   if (draft) {
     updates.title = draft.title;
@@ -43,10 +38,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updates.servings = draft.servings != null ? String(draft.servings) : null;
   }
   if (sourceUrl !== undefined) updates.sourceUrl = sourceUrl;
-  if (imageUrl !== undefined) updates.imageUrl = imageUrl;
   if (collectionId !== undefined) updates.collectionId = collectionId;
 
-  await db().update(recipes).set(updates).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
+  await db().update(recipes).set(updates).where(eq(recipes.id, id));
 
   if (draft) {
     await db().delete(recipeIngredients).where(eq(recipeIngredients.recipeId, id));
@@ -83,7 +77,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     .where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
   if (!existing) return NextResponse.json({ ok: false, message: 'Recipe not found.' }, { status: 404 });
 
-  await db().delete(recipes).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
+  await db().delete(recipes).where(eq(recipes.id, id));
 
   return NextResponse.json({ ok: true });
 }

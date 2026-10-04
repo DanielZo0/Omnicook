@@ -18,7 +18,6 @@ export const recipes = pgTable('recipes', {
   title: varchar('title', { length: 180 }).notNull(),
   creator: text('creator'),
   sourceUrl: text('source_url'),
-  imageUrl: text('image_url'),
   category: recipeCategoryEnum('category').notNull().default('Other'),
   prepMinutes: integer('prep_minutes'),
   cookMinutes: integer('cook_minutes'),

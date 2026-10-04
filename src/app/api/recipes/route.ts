@@ -6,7 +6,6 @@ import { recipeIngredients, recipes, recipeSteps } from '@/lib/db/schema';
 import { requireUserId } from '@/lib/auth/require-user';
 import { recipeSchema } from '@/lib/recipe-schema';
 import { ensureSeeded } from '@/lib/db/seed';
-import { findOwnedCollection } from '@/lib/db/ownership';
 
 export async function GET() {
   if (!isDbConfigured()) {
@@ -27,7 +26,6 @@ export async function GET() {
     title: r.title,
     creator: r.creator,
     sourceUrl: r.sourceUrl,
-    imageUrl: r.imageUrl,
     category: r.category,
     prepMinutes: r.prepMinutes,
     cookMinutes: r.cookMinutes,
@@ -50,7 +48,6 @@ export async function GET() {
 const createRequestSchema = z.object({
   draft: recipeSchema,
   sourceUrl: z.string().nullable(),
-  imageUrl: z.string().url().nullable().optional(),
   collectionId: z.string().uuid().nullable(),
 });
 
@@ -63,17 +60,13 @@ export async function POST(request: Request) {
 
   const parsed = createRequestSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ ok: false, message: 'Invalid recipe payload.' }, { status: 400 });
-  const { draft, sourceUrl, imageUrl, collectionId } = parsed.data;
-
-  const collection = collectionId ? await findOwnedCollection(userId, collectionId) : null;
-  if (collectionId && !collection) return NextResponse.json({ ok: false, message: 'Collection not found.' }, { status: 404 });
+  const { draft, sourceUrl, collectionId } = parsed.data;
 
   const [recipe] = await db().insert(recipes).values({
     userId,
     title: draft.title,
     creator: draft.creator,
     sourceUrl,
-    imageUrl: imageUrl ?? null,
     category: draft.category,
     prepMinutes: draft.prepMinutes,
     cookMinutes: draft.cookMinutes,

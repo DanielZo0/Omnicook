@@ -57,7 +57,7 @@ export function vaultToMobile(recipe: VaultRecipe): MobileRecipe {
     k: recipe.category,
     time: minutes > 0 ? `${minutes} min` : 'Time not set',
     n: recipe.servings ?? 1,
-    img: recipe.imageUrl ?? imageForRecipe(recipe),
+    img: imageForRecipe(recipe),
     sourceUrl: recipe.sourceUrl,
     collectionId: recipe.collectionId,
     a: recipe.ingredients.map((ingredient) => ({

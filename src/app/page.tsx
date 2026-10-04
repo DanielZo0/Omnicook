@@ -75,7 +75,7 @@ export default function Home() {
   const [importing, setImporting] = useState(false);
   const [extractIdx, setExtractIdx] = useState(0);
   const [extractSeconds, setExtractSeconds] = useState<number | null>(null);
-  const [reviewDraft, setReviewDraft] = useState<{ draft: RecipeDraft; sourceUrl: string | null; imageUrl: string | null } | null>(null);
+  const [reviewDraft, setReviewDraft] = useState<{ draft: RecipeDraft; sourceUrl: string | null } | null>(null);
   const [editRecipeId, setEditRecipeId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -206,12 +206,12 @@ export default function Home() {
       body: JSON.stringify({ source }),
     })
       .then((res) => res.json())
-        .then((data: { ok: boolean; message?: string; draft?: RecipeDraft; sourceUrl?: string | null; imageUrl?: string | null }) => {
+      .then((data: { ok: boolean; message?: string; draft?: RecipeDraft; sourceUrl?: string | null }) => {
         if (extractTimer.current) clearInterval(extractTimer.current);
         setExtractIdx(EXTRACT_STEPS.length - 1);
         if (data.ok && data.draft) {
           setExtractSeconds(Math.max(1, Math.round((Date.now() - started) / 1000)));
-          setReviewDraft({ draft: data.draft, sourceUrl: data.sourceUrl ?? null, imageUrl: data.imageUrl ?? null });
+          setReviewDraft({ draft: data.draft, sourceUrl: data.sourceUrl ?? null });
           go('review');
         } else {
           setStatus(data.message ?? 'Import could not be completed.');
@@ -227,7 +227,7 @@ export default function Home() {
   }
 
   function writeItMyself() {
-    setReviewDraft({ draft: blankDraft(), sourceUrl: null, imageUrl: null });
+    setReviewDraft({ draft: blankDraft(), sourceUrl: null });
     setExtractSeconds(null);
     setSelectedCollectionId(null);
     setNewCollectionName('');
@@ -259,7 +259,6 @@ export default function Home() {
         steps: recipe.steps.map((step) => ({ ...step })),
       },
       sourceUrl: recipe.sourceUrl,
-      imageUrl: recipe.imageUrl,
     });
     setEditRecipeId(recipe.id);
     setSelectedCollectionId(recipe.collectionId);
@@ -289,7 +288,7 @@ export default function Home() {
     setSaving(true);
     try {
       if (editRecipeId) {
-        await updateRecipe(editRecipeId, { draft: reviewDraft.draft, sourceUrl: reviewDraft.sourceUrl, imageUrl: reviewDraft.imageUrl, collectionId: selectedCollectionId });
+        await updateRecipe(editRecipeId, { draft: reviewDraft.draft, sourceUrl: reviewDraft.sourceUrl, collectionId: selectedCollectionId });
         await refreshVault();
         setReviewDraft(null);
         setEditRecipeId(null);
@@ -297,7 +296,7 @@ export default function Home() {
         setNewCollectionName('');
         go('detail');
       } else {
-        await createRecipeFromDraft(reviewDraft.draft, reviewDraft.sourceUrl, reviewDraft.imageUrl, selectedCollectionId);
+        await createRecipeFromDraft(reviewDraft.draft, reviewDraft.sourceUrl, selectedCollectionId);
         setReviewDraft(null);
         setSource('');
         setSelectedCollectionId(null);
@@ -641,10 +640,6 @@ export default function Home() {
           {extractSeconds != null && <span style={s(`display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;background:${LIME};font-size:11.5px;font-weight:700`)}>✦ Extracted in {extractSeconds}s</span>}
         </div>
         <div style={s('padding:16px 20px 0')}>
-          {reviewDraft.imageUrl && <div style={s('margin-bottom:14px;border-radius:14px;overflow:hidden;height:160px;position:relative')}>
-            <img src={reviewDraft.imageUrl} alt="" style={s('width:100%;height:100%;object-fit:cover;display:block')} />
-            <span style={s('position:absolute;bottom:8px;left:10px;background:#fffdf8ea;padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700')}>Hero photo</span>
-          </div>}
           <div style={s('font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#6d806b')}>{editRecipeId ? 'Edit recipe' : 'Check before saving'}</div>
           <input value={reviewDraft.draft.title} onChange={(e) => updateDraft('title', e.target.value)} placeholder="Recipe title" style={s("width:100%;margin-top:6px;padding:0;border:0;outline:0;background:transparent;font-family:'Playfair Display',serif;font-weight:700;font-size:27px;letter-spacing:-.5px;line-height:1.15;box-sizing:border-box")} />
           <div style={s('display:flex;gap:8px;flex-wrap:wrap;margin-top:12px')}>
