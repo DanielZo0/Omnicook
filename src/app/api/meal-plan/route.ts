@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, isDbConfigured } from '@/lib/db/client';
 import { mealPlanItems, recipes } from '@/lib/db/schema';
 import { requireUserId } from '@/lib/auth/require-user';
+import { findOwnedRecipe } from '@/lib/db/ownership';
 
 export async function GET() {
   if (!isDbConfigured()) {
@@ -44,6 +45,9 @@ export async function POST(request: Request) {
   const parsed = upsertRequestSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ ok: false, message: 'Invalid meal plan entry.' }, { status: 400 });
   const { recipeId, plannedFor, mealSlot } = parsed.data;
+
+  const recipe = await findOwnedRecipe(userId, recipeId);
+  if (!recipe) return NextResponse.json({ ok: false, message: 'Recipe not found.' }, { status: 404 });
 
   await db().insert(mealPlanItems)
     .values({ userId, recipeId, plannedFor, mealSlot })

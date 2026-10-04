@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     }, { status: 503 });
   }
 
-  const { sourceUrl, text } = await resolveSource(parsed.data.source);
+  const { sourceUrl, imageUrl, text } = await resolveSource(parsed.data.source);
 
   let raw: unknown;
   try {
@@ -48,5 +48,5 @@ export async function POST(request: Request) {
     }, { status: 422 });
   }
 
-  return NextResponse.json({ ok: true, draft: draft.data, sourceUrl });
+  return NextResponse.json({ ok: true, draft: draft.data, sourceUrl, imageUrl });
 }

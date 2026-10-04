@@ -27,14 +27,26 @@ function decodeEntities(text: string) {
     .replace(/&amp;/g, '&');
 }
 
-// Instagram/Facebook/X (and similar) render an empty JS shell for logged-out
-// scrapers — the actual caption only exists in an og:description/description
-// <meta> attribute, which a plain tag-strip would discard along with the tag
-// itself. Pull it out first so social-media imports have real content to work with.
-function extractMetaDescription(html: string) {
-  const match = html.match(/<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]*content=["']([\s\S]*?)["'][^>]*\/?>/i)
-    ?? html.match(/<meta[^>]+content=["']([\s\S]*?)["'][^>]*(?:property|name)=["'](?:og:description|description)["'][^>]*\/?>/i);
-  return match ? decodeEntities(match[1]).trim() : '';
+// Instagram/Facebook/X/Pinterest (and similar) render an empty JS shell for
+// logged-out scrapers — the actual content only exists in og: <meta> attributes,
+// which a plain tag-strip would discard. Pull both title and description out
+// first so social-media imports (including pin.it short links) have real content.
+function extractMetaTags(html: string): { title: string; description: string; image: string } {
+  const findContent = (pattern: RegExp) => {
+    const m = html.match(pattern);
+    return m ? decodeEntities(m[1]).trim() : '';
+  };
+  const title =
+    findContent(/<meta[^>]+property=["']og:title["'][^>]*content=["']([\s\S]*?)["'][^>]*\/?>/i) ||
+    findContent(/<meta[^>]+content=["']([\s\S]*?)["'][^>]*property=["']og:title["'][^>]*\/?>/i) ||
+    findContent(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const description =
+    findContent(/<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]*content=["']([\s\S]*?)["'][^>]*\/?>/i) ||
+    findContent(/<meta[^>]+content=["']([\s\S]*?)["'][^>]*(?:property|name)=["'](?:og:description|description)["'][^>]*\/?>/i);
+  const image =
+    findContent(/<meta[^>]+property=["']og:image["'][^>]*content=["']([\s\S]*?)["'][^>]*\/?>/i) ||
+    findContent(/<meta[^>]+content=["']([\s\S]*?)["'][^>]*property=["']og:image["'][^>]*\/?>/i);
+  return { title, description, image };
 }
 
 function stripHtmlToText(html: string) {
@@ -49,6 +61,7 @@ function stripHtmlToText(html: string) {
 
 export type ExtractedSource = {
   sourceUrl: string | null;
+  imageUrl: string | null;
   text: string;
 };
 
@@ -62,7 +75,7 @@ export type ExtractedSource = {
 export async function resolveSource(source: string): Promise<ExtractedSource> {
   const trimmed = source.trim();
   if (!looksLikeUrl(trimmed)) {
-    return { sourceUrl: null, text: trimmed.slice(0, MAX_TEXT_CHARS) };
+    return { sourceUrl: null, imageUrl: null, text: trimmed.slice(0, MAX_TEXT_CHARS) };
   }
 
   const videoId = extractYoutubeVideoId(trimmed);
@@ -70,7 +83,7 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
     const video = await fetchYoutubeDescription(videoId).catch(() => null);
     if (video) {
       const text = `${video.title}\n\n${video.description}`.slice(0, MAX_TEXT_CHARS);
-      return { sourceUrl: trimmed, text };
+      return { sourceUrl: trimmed, imageUrl: null, text };
     }
   }
 
@@ -83,18 +96,22 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
     });
     const contentType = response.headers.get('content-type') ?? '';
     if (!response.ok || !contentType.includes('text/html')) {
-      return { sourceUrl: trimmed, text: trimmed };
+      return { sourceUrl: trimmed, imageUrl: null, text: trimmed };
     }
     const html = await response.text();
-    const metaDescription = extractMetaDescription(html);
+    const { title, description, image } = extractMetaTags(html);
     const bodyText = stripHtmlToText(html);
-    const combined = metaDescription && !bodyText.includes(metaDescription.slice(0, 40))
-      ? `${metaDescription}\n\n${bodyText}`
-      : bodyText;
+    // Build a meta prefix from og:title + og:description; for JS-rendered pages
+    // (Pinterest, Instagram, etc.) this is often the only meaningful content.
+    const metaPrefix = [title, description].filter(Boolean).join('\n\n');
+    const combined = metaPrefix && !bodyText.includes(metaPrefix.slice(0, 40))
+      ? `${metaPrefix}\n\n${bodyText}`
+      : bodyText || metaPrefix;
     const text = combined.slice(0, MAX_TEXT_CHARS);
-    return { sourceUrl: trimmed, text: text || trimmed };
+    const imageUrl = image || null;
+    return { sourceUrl: trimmed, imageUrl, text: text || trimmed };
   } catch {
-    return { sourceUrl: trimmed, text: trimmed };
+    return { sourceUrl: trimmed, imageUrl: null, text: trimmed };
   } finally {
     clearTimeout(timeout);
   }
