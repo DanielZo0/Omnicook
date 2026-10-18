@@ -299,3 +299,7 @@ body:has(.app-shell) { min-height: 0; }
 .recipe-editor textarea { min-width: 0; }
 
 .planner-heading { margin: 14px 20px 26px; }
+/* Failed-link reporting follows the import form's spacing and controls. */
+.import-report { margin-top: 16px; }
+.import-report .report-source { display: block; overflow-wrap: anywhere; margin-bottom: 18px; }
+.import-report a.primary-button { text-decoration: none; box-sizing: border-box; }

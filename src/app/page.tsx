@@ -21,6 +21,7 @@ import { GAM_BANNER_DETAIL_UNIT, GAM_BANNER_TABBAR_UNIT } from '@/lib/ads/gpt';
 import { RecipeImage } from '@/components/RecipeImage';
 import { KitchenIcon, type KitchenIconName } from '@/components/KitchenIcon';
 import { prepareCookingPhoto } from '@/lib/photos/client-upload';
+import { buildImportReportEmail, failedLinkReport, type FailedLinkReport } from '@/lib/import-report';
 
 type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
 type Layout = 'grid' | 'feed' | 'editorial';
@@ -74,6 +75,11 @@ export default function Home() {
   const [chefReply, setChefReply] = useState('');
   const [chefLoading, setChefLoading] = useState(false);
   const [source, setSource] = useState('');
+  const [failedImport, setFailedImport] = useState<FailedLinkReport | null>(null);
+  const [reportNote, setReportNote] = useState('');
+  const reportEmail = failedImport
+    ? buildImportReportEmail(process.env.NEXT_PUBLIC_IMPORT_REPORT_EMAIL ?? 'danzammit1@gmail.com', failedImport, reportNote)
+    : null;
   const [importing, setImporting] = useState(false);
   const [extractIdx, setExtractIdx] = useState(0);
   const [extractSeconds, setExtractSeconds] = useState<number | null>(null);
@@ -212,6 +218,9 @@ export default function Home() {
 
   function runExtract() {
     if (!source.trim() || importing) return;
+    const attemptedSource = source.trim();
+    setFailedImport(null);
+    setReportNote('');
     if (extractTimer.current) clearInterval(extractTimer.current);
     setImporting(true);
     setExtractIdx(0);
@@ -225,7 +234,7 @@ export default function Home() {
     fetch('/api/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source }),
+      body: JSON.stringify({ source: attemptedSource }),
     })
       .then((res) => res.json())
       .then((data: { ok: boolean; message?: string; draft?: RecipeDraft; sourceUrl?: string | null; imageUrl?: string | null }) => {
@@ -238,14 +247,18 @@ export default function Home() {
           setSelectedCollectionId(null);
           go('review');
         } else {
-          setStatus(data.message ?? 'Import could not be completed.');
           go('import');
+          const message = data.message ?? 'Import could not be completed.';
+          setStatus(message);
+          setFailedImport(failedLinkReport(attemptedSource, message));
         }
       })
       .catch(() => {
         if (extractTimer.current) clearInterval(extractTimer.current);
-        setStatus('Import failed. Check your connection and try again.');
         go('import');
+        const message = 'Import failed. Check your connection and try again.';
+        setStatus(message);
+        setFailedImport(failedLinkReport(attemptedSource, message));
       })
       .finally(() => setImporting(false));
   }
@@ -538,6 +551,15 @@ export default function Home() {
       <button className="back-button" onClick={() => go('vault')}><KitchenIcon name="arrow" style={{transform:'rotate(180deg)'}} size={18} /> Cookbook</button>
       <header className="utility-heading"><h1>Keep something delicious.</h1><p>That recipe you don’t want to lose? Give it a home.</p></header>
       <section className="import-panel"><span className="import-symbol"><KitchenIcon name="book" size={30} /></span><h2>From their kitchen to yours</h2><p>Copy a link from a food blog or social post, or paste the full recipe caption.</p><label htmlFor="recipe-source">Recipe link or caption</label><textarea id="recipe-source" value={source} onChange={e => setSource(e.target.value)} placeholder="Paste your link or recipe here…" rows={5} /><button className="primary-button" onClick={runExtract} disabled={importing || !source.trim()}><KitchenIcon name="spark" size={18} />{importing ? 'Reading your recipe…' : 'Import recipe'}<KitchenIcon name="arrow" size={18} /></button><p className="import-support">Instagram, Pinterest, YouTube, TikTok & food blogs</p>{status && <p className="inline-status" role="status">{status}</p>}</section>
+      {failedImport && reportEmail && <section className="import-panel import-report" aria-labelledby="report-heading">
+        <h2 id="report-heading">Help us support this recipe</h2>
+        <p>Report the failed link so we can review it and improve imports.</p>
+        <a className="report-source" href={failedImport.source} target="_blank" rel="noreferrer">{failedImport.source}</a>
+        <label htmlFor="import-report-note">Anything else? (optional)</label>
+        <textarea id="import-report-note" value={reportNote} onChange={e => setReportNote(e.target.value)} maxLength={1000} rows={3} placeholder="Tell us what went wrong…" />
+        <a className="primary-button" href={reportEmail}>Report this link by email <KitchenIcon name="arrow" size={18} /></a>
+        <p className="import-support">Opens your email app with the link and error included. Review the email and tap Send.</p>
+      </section>}
       <button className="manual-recipe" onClick={writeItMyself}><span className="avatar"><KitchenIcon name="plus" size={22} /></span><span><b>Write a recipe of your own</b><small>Family favourites, experiments, happy accidents.</small></span><KitchenIcon name="chevron" size={18} /></button>
       <p className="import-footnote">You’ll review the ingredients and method before saving.</p>
     </div>}
