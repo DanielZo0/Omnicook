@@ -24,12 +24,12 @@ export function extractYoutubeVideoId(url: string): string | null {
  * snippet, never the full text with the actual recipe. The Data API's
  * videos.list returns the real description directly.
  */
-export async function fetchYoutubeDescription(videoId: string): Promise<{ title: string; description: string } | null> {
+export async function fetchYoutubeDescription(videoId: string, signal?: AbortSignal): Promise<{ title: string; description: string } | null> {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) return null;
 
   const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`;
-  const response = await fetch(url);
+  const response = await fetch(url, {signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000)});
   if (!response.ok) return null;
 
   const data = await response.json() as {

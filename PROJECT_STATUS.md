@@ -1,6 +1,96 @@
 # Omnicook — project status
 
-Last updated: 2026-09-14
+Last updated: 2026-10-18 (iPhone/iPad redesign; older verification and deployment notes below remain historical)
+
+## iPhone and iPad redesign — 2026-10-18
+
+- First live design pass uses a porcelain/blue palette, Manrope interface type and Lora
+  recipe titles, custom SVG navigation icons, larger recipe photography, and grid/list/editorial views.
+- iPhone has bottom navigation, safe-area-aware spacing and reachable cooking actions.
+  iPad widths from 800px have a persistent sidebar; recipe detail places ingredients beside
+  the method, cooking mode keeps all ingredients alongside the current step, and the weekly
+  planner uses multiple columns. Smaller tablets use the phone navigation with more gallery columns.
+- Import uses one labelled link-or-caption field and a manual-recipe action. Existing API,
+  auth, recipe ownership and photo upload flows remain connected. No new provider requests
+  or persistent test data were created for this redesign.
+- Titles now sit below recipe photography; serving controls wrap on narrow tablet columns.
+  Cooking mode has a real question input and no longer claims an unimplemented screen wake lock.
+- Home-screen PNG icons (180/192/512px) and manifest/browser theme match the redesign.
+- Browser checks cover 320, 393, 768, 820, 1024 and 1366px widths, grid/list/editorial,
+  search, recipe opening, serving controls, next cooking step, import/manual editor and planner.
+  Regression suite: 39/39 pass. Production Webpack build and TypeScript pass.
+  Actual iPhone/iPad Safari, keyboard/camera and installed-PWA testing remain pending.
+- Code review found the smaller-tablet feed layout override; fixed and browser-verified.
+  Editor textarea has a minimum-width guard; 320px editor showed no overflow.
+- Browser review also noticed an older scaling bug: 2-3 becomes 4-3 at 2x. Range parsing
+  is outside this visual pass and remains a follow-up.
+- Release verified for GitHub merge and Vercel rollout; current deployment state is recorded in DevWiki.
+- Before rollout, a no-compute Neon recovery branch `pre-deploy-2026-10-18-redesign` was created.
+  Read-only integrity checks cover all 70 existing recipes, their 743 ingredients/557 steps,
+  five collections, one meal-plan entry, four accounts and 18 stored photos.
+  All 36 account-isolation/upload checks passed and temporary fixtures were removed.
+  Production sign-in confirmed the same persistent demo account and recipe IDs as the existing DB.
+
+## Automatic recipe photos — 2026-10-16
+
+- Photo choice is automatic on the server: copy a source photo, select a close licensed
+  Wikimedia match using the configured model, then generate with NVIDIA FLUX.2 Klein.
+  No generation/lookup choices or URL fields are exposed in the review flow.
+- Source/lookup/generated photos are normalized to small WebP files and persisted in Neon.
+  The additive photo_data/photo_metadata migration is applied to the configured DB.
+  Images are served only after recipe-owner authentication; vault JSON excludes image bytes.
+- Add my cooking photo lets users replace the illustration with their actual dish.
+  Uploads strip EXIF, validate decoded formats, and remain protected from late automatic jobs
+  and concurrent edits. Generated and related images have appropriate labels/credits.
+- Automatic jobs run after saving, have a 100-second budget, recover interrupted claims,
+  and retry failures after 24 hours up to three attempts. Unchanged edits reuse photos.
+- Real source copies, licensed bruschetta lookup and generated banana-oat pancakes verified.
+  Eight of the nine demo recipes have persisted photos; one remains on a safe placeholder
+  after provider failures. Core saving succeeds regardless of photo-provider availability.
+- All 39 regression tests, 36 real-account HTTP checks and the production build pass. Temporary accounts and
+  fixtures were removed. Reviewer found no remaining Important issue. Deployment pending.
+- The older NVIDIA FLUX.1 endpoint timed out; FLUX.2 Klein was verified live using cfg_scale=1
+  and no mode field, which differs from the published API defaults. Regression covers this.
+
+## Account isolation verification — 2026-10-14
+
+- Local browser auth was blocked by Neon's trusted origins: Google sign-in returned
+  `INVALID_CALLBACKURL` (403). Added the exact local origin `http://127.0.0.1:3018`
+  to the existing branch configuration. Sign-in now returns a redirect (200), and
+  Google's sign-in page loads without `redirect_uri_mismatch` or `invalid_client`.
+  Completing Google account sign-in still needs browser verification by the user.
+
+- Two real temporary Neon Auth accounts exercised the local API against the configured
+  Neon database. `npm run test:isolation` passes 28 checks, including anonymous access,
+  both directions of cross-account access, and allowed owner operations.
+- Fixed missing collection ownership checks in recipe creation/editing and missing recipe
+  ownership checks in meal-plan writes. Meal-plan reads now also require recipe ownership,
+  hiding any older cross-account links that could expose another account's recipe title.
+- Temporary auth accounts, sessions, and business fixtures were removed after testing.
+- These fixes are local and have not been deployed. See `docs/account-isolation-testing.md`
+  for reproduction and cleanup details. Mobile/browser session switching was not tested.
+
+## Social imports and source photos — 2026-10-14
+
+- Instagram metadata/embedded captions are scoped to the requested post. Pinterest follows
+  the requested pin's original recipe link and prefers complete structured Recipe data.
+  Blocked or incomplete social content asks for the full caption or original recipe link.
+- Source fetching has public-address validation, pinned DNS, redirect/size limits and a
+  14-second deadline. AI extraction has a shared 40-second budget covering response bodies,
+  one schema-guided repair, explicit insufficient-content refusal, and truncation detection.
+- Saved recipes persist their source image URL; review/edit supports replacing or clearing
+  it. Missing, unsafe or broken images show a neutral plate illustration. Random stock
+  photos are removed. The additive image_url migration has been applied to the configured DB.
+- Persistent demo vault has nine recipes, including a real Pinterest import, and six source
+  photos. Live Instagram extraction returned 26 ingredients and 16 steps; Pinterest returned
+  a complete lemon chickpea stew. Groq is the verified local active provider, superseding
+  older notes claiming its key is unset. Larger output allowance fixes its observed cutoff.
+- All 26 regression tests, 28 real-account API checks and the production build pass. Browser photo review passed
+  before the server restart; final browser automation reconnection is blocked by its error-page
+  URL policy, while local HTTP/API checks succeed. These code changes are not deployed.
+- Next.js patched from 16.3.4 to 16.3.8. Six audit findings remain (four moderate, two high).
+  Remote social photos may expire; durable media storage remains future work.
+- See docs/social-imports-and-images.md for implementation and verification details.
 
 ## Product direction
 
@@ -175,8 +265,8 @@ Omnicook is a browser application for importing social-media and food-blog recip
   described above — needs either a Neon fix or your own Google OAuth client.
 - Groq and Gemini keys are still unset (NVIDIA and xAI are the only providers with real
   working/valid keys right now, and NVIDIA is confirmed working end-to-end in production).
-- Recipe images: saved recipes currently use one placeholder photo since there is no
-  image-storage integration yet.
+- Recipe media is now persisted as bounded WebP bytes in Neon. Move bytes to object storage
+  if vault volume warrants it; no additional storage account is needed for the current app.
 - Service worker registration/offline caching for the Next.js app (the old static-prototype
   `service-worker.js`/root `manifest.webmanifest` at the repo root are leftovers from the
   pre-Next.js prototype and are not wired into the live app — `public/manifest.webmanifest`
@@ -215,9 +305,8 @@ remain unconnected, and none of those block core functionality.
    `git push`. Check the Vercel dashboard → Project → Settings → Git.
 3. Smoke-test the AI sous-chef on the recipe detail and cook-mode screens (uses the same
    NVIDIA key/fix, but hasn't been exercised specifically).
-4. Test user isolation with two real accounts — since there's no RLS safety net on Neon, this
-   is the most important remaining check: confirm the `/api/*` routes never leak one user's
-   recipes/collections/meal-plan to another.
+4. Deploy the locally verified ownership fixes, then recheck account isolation on the
+   deployed version. The local two-account API suite passed on 2026-10-14.
 5. On an actual iPhone/Android browser, use "Add to Home Screen" and confirm the manifest
    icon/name/standalone display work as expected.
 6. Decide what to do with the test account/recipes created during verification (`danzammit1@
@@ -232,5 +321,5 @@ The core product loop is now genuinely verified live in production, not just loc
 sign-up, sign-in, session persistence, real AI extraction (NVIDIA, ~8-17s per call), the
 review screen, saving a recipe, and it persisting in the vault — all confirmed against
 https://omnicook-seven.vercel.app with real HTTP requests. Not yet exercised: the AI
-sous-chef specifically, Google sign-in (blocked by the Neon-side OAuth bug above), and
-two-account isolation testing.
+   sous-chef specifically and Google sign-in (historically blocked by the Neon-side OAuth
+   bug above). Two-account isolation is now verified locally; deployed fixes remain pending.

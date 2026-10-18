@@ -1,8 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
-import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt } from './prompt';
+import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
 import { ExtractionProviderError } from './errors';
 
-export async function extractWithGemini(sourceUrl: string | null, text: string): Promise<unknown> {
+export async function extractWithGemini(sourceUrl: string | null, text: string, options: ExtractionOptions = {}): Promise<unknown> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new ExtractionProviderError('Gemini is not configured.');
 
@@ -13,11 +13,12 @@ export async function extractWithGemini(sourceUrl: string | null, text: string):
   try {
     const result = await client.models.generateContent({
       model,
-      contents: buildExtractionUserPrompt(sourceUrl, text),
+      contents: buildExtractionUserPrompt(sourceUrl, text, options.validationFeedback),
       config: {
         systemInstruction: EXTRACTION_SYSTEM_PROMPT,
         responseMimeType: 'application/json',
         temperature: 0.2,
+        httpOptions: {timeout: Math.min(40000, options.timeoutMs ?? 40000)},
       },
     });
     content = result.text;

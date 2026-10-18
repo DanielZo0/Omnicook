@@ -1,101 +1,115 @@
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+import { Agent } from 'undici';
+import { normalizeImageUrl } from '../image-url';
+import { parseSourcePage } from './source-page';
 import { extractYoutubeVideoId, fetchYoutubeDescription } from './youtube';
 
-const FETCH_TIMEOUT_MS = 8_000;
-// Trimmed down from 20,000: real blog pages are mostly nav/ads/comments once
-// tags are stripped, and a smaller prompt is both faster and more focused for
-// the extraction model.
-const MAX_TEXT_CHARS = 10_000;
-
-function looksLikeUrl(source: string) {
-  try {
-    const url = new URL(source);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
+const MAX_TEXT_CHARS = 10000;
+const MAX_PAGE_BYTES = 2_000_000;
+export class SourceReadError extends Error {}
+export type ExtractedSource = {sourceUrl: string | null; imageUrl: string | null; text: string};
+function isPublicAddress(address: string): boolean {
+  if (isIP(address) === 6) return /^[23][0-9a-f]{3}:/i.test(address) && !/^2001:(?:db8|0):/i.test(address);
+  if (isIP(address) !== 4) return false;
+  const [a, b] = address.split('.').map(Number);
+  return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && (b === 168 || b === 0)) || (a === 100 && b >= 64 && b <= 127) || a === 198 && (b === 18 || b === 19));
+}
+export async function publicUrl(value: string) {
+  let url: URL;
+  try { url = new URL(value); } catch { throw new SourceReadError('Use a valid public recipe address.'); }
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.port && !['80', '443'].includes(url.port)) throw new SourceReadError('Use a public http or https recipe address.');
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if ((!host.includes('.') && !isIP(host)) || /(?:^|\.)(?:localhost|local|internal)$/.test(host)) throw new SourceReadError('Only public recipe addresses can be imported.');
+  const addresses = isIP(host) ? [{address: host, family: isIP(host)}] : await lookup(host, {all: true});
+  if (!addresses.length || addresses.some(item => !isPublicAddress(item.address))) throw new SourceReadError('Only public recipe addresses can be imported.');
+  return {url, addresses};
+}
+async function fetchPage(value: string, signal: AbortSignal) {
+  let current = value;
+  for (let redirects = 0; redirects <= 5; redirects++) {
+    const {url, addresses} = await publicUrl(current);
+    // Pin this request to the validated DNS answers, so a second DNS lookup
+    // cannot rebind the hostname to a private destination after validation.
+    const dispatcher = new Agent({connect: {autoSelectFamily: true, lookup: (_host, options, callback) => {
+      if (options.all) callback(null, addresses);
+      else callback(null, addresses[0].address, addresses[0].family);
+    }}});
+    try {
+      const init: RequestInit & {dispatcher: Agent} = {signal, dispatcher, redirect: 'manual', headers: {'User-Agent': 'Mozilla/5.0 (compatible; OmnicookBot/0.2)', Accept: 'text/html,application/xhtml+xml'}};
+      const response = await fetch(url.href, init);
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get('location');
+        await response.body?.cancel();
+        if (!location) throw new SourceReadError('The source redirected without a destination. Paste its caption instead.');
+        current = new URL(location, url).href;
+        continue;
+      }
+      if (!response.ok || !/(?:text\/html|application\/xhtml\+xml)/i.test(response.headers.get('content-type') || '')) {
+        await response.body?.cancel();
+        throw new SourceReadError('This page could not be read. Paste the recipe caption or original recipe link instead.');
+      }
+      if (Number(response.headers.get('content-length')) > MAX_PAGE_BYTES) { await response.body?.cancel(); throw new SourceReadError('The source page is too large. Paste its recipe text instead.'); }
+      const reader = response.body?.getReader();
+      if (!reader) throw new SourceReadError('The source is empty. Paste its recipe caption instead.');
+      const decoder = new TextDecoder();
+      let bytes = 0, html = '';
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          bytes += chunk.value.byteLength;
+          if (bytes > MAX_PAGE_BYTES) throw new SourceReadError('The source page is too large. Paste its recipe text instead.');
+          html += decoder.decode(chunk.value, {stream: true});
+        }
+        html += decoder.decode();
+      } finally { await reader.cancel().catch(() => {}); }
+      return {url: url.href, page: parseSourcePage(html, url.href)};
+    } finally { await dispatcher.close(); }
   }
+  throw new SourceReadError('This link redirects too many times. Paste the original recipe link instead.');
 }
-
-function decodeEntities(text: string) {
-  return text
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
+function socialHost(host: string) { return /(?:^|\.)(?:instagram\.com|pinterest\.[a-z.]+|pin\.it)$/.test(host); }
+function hasRecipeContent(text: string) {
+  const measuredIngredients = /\b(?:g|kg|ml|cup|cups|tbsp|tsp|tablespoon|teaspoon|ingredients)\b/i.test(text);
+  const countedIngredients = /\b\d+(?:[/.]\d+)?\s+(?!(?:likes?|comments?|followers?|views?|minutes?|hours?|seconds?|days?|steps?|recipes?)\b)[a-z]+/i.test(text);
+  return text.length >= 60 && (measuredIngredients || countedIngredients) && /\b(?:method|instructions|cook|boil|fry|bake|blend|mix|stir|toss|roast|whisk|add|heat|simmer|mash)\b/i.test(text);
 }
-
-// Instagram/Facebook/X (and similar) render an empty JS shell for logged-out
-// scrapers — the actual caption only exists in an og:description/description
-// <meta> attribute, which a plain tag-strip would discard along with the tag
-// itself. Pull it out first so social-media imports have real content to work with.
-function extractMetaDescription(html: string) {
-  const match = html.match(/<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]*content=["']([\s\S]*?)["'][^>]*\/?>/i)
-    ?? html.match(/<meta[^>]+content=["']([\s\S]*?)["'][^>]*(?:property|name)=["'](?:og:description|description)["'][^>]*\/?>/i);
-  return match ? decodeEntities(match[1]).trim() : '';
-}
-
-function stripHtmlToText(html: string) {
-  return decodeEntities(
-    html
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-      .replace(/<[^>]+>/g, ' '),
-  ).replace(/\s+/g, ' ').trim();
-}
-
-export type ExtractedSource = {
-  sourceUrl: string | null;
-  text: string;
-};
-
-/**
- * Resolves the pasted `source` into extraction-ready text. A URL is fetched
- * and reduced to readable text; plain text (a pasted caption) passes through
- * unchanged. Fetch failures fall back to using the raw source string so the
- * model still has something to work with, since many platforms block
- * unauthenticated scraping.
- */
 export async function resolveSource(source: string): Promise<ExtractedSource> {
   const trimmed = source.trim();
-  if (!looksLikeUrl(trimmed)) {
-    return { sourceUrl: null, text: trimmed.slice(0, MAX_TEXT_CHARS) };
-  }
-
-  const videoId = extractYoutubeVideoId(trimmed);
-  if (videoId) {
-    const video = await fetchYoutubeDescription(videoId).catch(() => null);
-    if (video) {
-      const text = `${video.title}\n\n${video.description}`.slice(0, MAX_TEXT_CHARS);
-      return { sourceUrl: trimmed, text };
-    }
-  }
-
+  if (!/^https?:\/\//i.test(trimmed)) return {sourceUrl: null, imageUrl: null, text: trimmed.slice(0, MAX_TEXT_CHARS)};
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), 14000);
   try {
-    const response = await fetch(trimmed, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OmnicookBot/0.1)' },
-    });
-    const contentType = response.headers.get('content-type') ?? '';
-    if (!response.ok || !contentType.includes('text/html')) {
-      return { sourceUrl: trimmed, text: trimmed };
+    const parsed = new URL(trimmed);
+    if (/(?:^|\.)(?:instagram\.com|pinterest\.[a-z.]+)$/.test(parsed.hostname)) for (const key of [...parsed.searchParams.keys()]) if (/^(?:igsh|utm_|fbclid)/i.test(key)) parsed.searchParams.delete(key);
+    const videoId = extractYoutubeVideoId(parsed.href);
+    if (videoId) {
+      await publicUrl(parsed.href);
+      const video = await fetchYoutubeDescription(videoId, controller.signal).catch(() => null);
+      if (video) return {sourceUrl: parsed.href, imageUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, text: `${video.title}\n\n${video.description}`.slice(0, MAX_TEXT_CHARS)};
     }
-    const html = await response.text();
-    const metaDescription = extractMetaDescription(html);
-    const bodyText = stripHtmlToText(html);
-    const combined = metaDescription && !bodyText.includes(metaDescription.slice(0, 40))
-      ? `${metaDescription}\n\n${bodyText}`
-      : bodyText;
-    const text = combined.slice(0, MAX_TEXT_CHARS);
-    return { sourceUrl: trimmed, text: text || trimmed };
-  } catch {
-    return { sourceUrl: trimmed, text: trimmed };
-  } finally {
-    clearTimeout(timeout);
-  }
+    const original = await fetchPage(parsed.href, controller.signal);
+    let selected = original;
+    if (/(?:^|\.)(?:pinterest\.[a-z.]+|pin\.it)$/.test(new URL(original.url).hostname)) {
+      for (const link of original.page.destinations.slice(0, 3)) {
+        let destination: URL;
+        try { destination = new URL(link, original.url); } catch { continue; }
+        if (socialHost(destination.hostname)) continue;
+        try {
+          const candidate = await fetchPage(destination.href, controller.signal);
+          if (candidate.page.structuredText || hasRecipeContent(candidate.page.body)) { selected = candidate; break; }
+        } catch (error) {
+          if (error instanceof SourceReadError && /public|address/.test(error.message)) throw error;
+        }
+      }
+    }
+    const page = selected.page, isSocial = socialHost(new URL(selected.url).hostname);
+    const text = page.structuredText || (isSocial ? [page.caption, page.description].filter(Boolean).join('\n\n') : [page.title, page.description, page.body].filter(Boolean).join('\n\n'));
+    if (!text.trim() || (isSocial && !hasRecipeContent(text) && !page.structuredText)) throw new SourceReadError('This post does not expose a complete recipe. Paste the full caption or the original recipe link instead.');
+    return {sourceUrl: original.url, imageUrl: normalizeImageUrl(page.image, selected.url), text: text.slice(0, MAX_TEXT_CHARS)};
+  } catch (error) {
+    if (error instanceof SourceReadError) throw error;
+    throw new SourceReadError('Could not read this source. Paste the full recipe caption or original recipe link instead.');
+  } finally { clearTimeout(timer); }
 }
