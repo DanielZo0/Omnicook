@@ -16,7 +16,11 @@ input, textarea, select { font: inherit; font-size: 16px; color: var(--ink); }
 input, textarea { -webkit-appearance: none; appearance: none; }
 img { max-width: 100%; }
 button, h1, h2, h3, p { overflow-wrap: anywhere; }
-.app-shell { width: 100%; height: 100svh; height: 100dvh; display: flex; overflow: hidden; background: var(--paper); }
+/* The app scrolls inside its shell; keep the login page free to scroll normally. */
+html:has(.app-shell), body:has(.app-shell) { overflow: hidden; overscroll-behavior: none; }
+body:has(.app-shell) { min-height: 0; }
+/* Use viewport edges so standalone iOS reserves the home-indicator inset only in navigation. */
+.app-shell { position: fixed; inset: 0; width: 100%; display: flex; overflow: hidden; background: var(--paper); }
 .app-content { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; position: relative; }
 .app-content > div:not(.navigation-ad) { min-height: 0; }
 .app-scroll { overflow: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
