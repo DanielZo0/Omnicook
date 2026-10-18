@@ -1,33 +1,52 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AUTH_CONFIGURED, authClient } from './client';
 
 export { AUTH_CONFIGURED };
 
 export type SessionUser = { id: string; email: string | null };
 
-/** Exposes { user, loading, refresh }. Fetches the session once on mount via
- * the Better Auth client and re-fetches on demand (call refresh() after a
- * sign-in/out that happened without a full navigation). */
+/** Recheck on foreground return: installed apps can resume after OAuth without remounting. */
 export function useSession() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(AUTH_CONFIGURED);
+  const checking = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (background = false) => {
     if (!AUTH_CONFIGURED) { setLoading(false); return; }
-    setLoading(true);
+    if (checking.current) return;
+    checking.current = true;
+    if (!background) setLoading(true);
     try {
-      const { data } = await authClient().getSession();
+      const { data, error } = await authClient().getSession();
+      if (error) {
+        if (error.status === 401 || error.status === 403) { setUser(null); return; }
+        throw error;
+      }
       setUser(data?.user ? { id: data.user.id, email: data.user.email ?? null } : null);
     } catch {
-      setUser(null);
+      if (!background) setUser(null);
     } finally {
+      checking.current = false;
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    function resume() {
+      if (document.visibilityState === 'visible') void refresh(true);
+    }
+    window.addEventListener('pageshow', resume);
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => {
+      window.removeEventListener('pageshow', resume);
+      window.removeEventListener('focus', resume);
+      document.removeEventListener('visibilitychange', resume);
+    };
+  }, [refresh]);
 
   return { user, loading, refresh };
 }

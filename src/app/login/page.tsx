@@ -1,16 +1,22 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { authClient, AUTH_CONFIGURED } from '@/lib/auth/client';
+import { useSession } from '@/lib/auth/session';
 import { s } from '@/lib/mobile/style';
 
 export default function LoginPage() {
+  const { user, loading: sessionLoading } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!sessionLoading && user) window.location.replace('/');
+  }, [sessionLoading, user]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -22,7 +28,7 @@ export default function LoginPage() {
         ? await authClient().signIn.email({ email, password })
         : await authClient().signUp.email({ email, password, name: name || email });
       if (error) { setMessage(error.message ?? 'That did not work.'); return; }
-      window.location.href = '/';
+      window.location.replace('/');
     } catch {
       setMessage('Something went wrong. Check your connection and try again.');
     } finally {
