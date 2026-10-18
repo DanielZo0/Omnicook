@@ -1,5 +1,9 @@
 export type FailedLinkReport = { source: string; message: string };
 
+export function importReportRecipient(configured: string | undefined): string {
+  return configured?.trim() || 'danzammit1@gmail.com';
+}
+
 export function failedLinkReport(source: string, message: string): FailedLinkReport | null {
   try {
     const url = new URL(source.trim());

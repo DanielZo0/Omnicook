@@ -2,6 +2,14 @@ require('./register-ts.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
+test('blank optional inbox settings retain the approved default recipient', () => {
+  const { importReportRecipient } = require('../src/lib/import-report.ts');
+  for (const setting of [undefined, '', '   ']) {
+    assert.equal(importReportRecipient(setting), 'danzammit1@gmail.com');
+  }
+  assert.equal(importReportRecipient(' reports@example.com '), 'reports@example.com');
+});
+
 test('report email preserves the failed URL and encodes notes as body text', () => {
   const { buildImportReportEmail } = require('../src/lib/import-report.ts');
   const href = buildImportReportEmail('reports@example.com', {

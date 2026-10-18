@@ -21,7 +21,7 @@ import { GAM_BANNER_DETAIL_UNIT, GAM_BANNER_TABBAR_UNIT } from '@/lib/ads/gpt';
 import { RecipeImage } from '@/components/RecipeImage';
 import { KitchenIcon, type KitchenIconName } from '@/components/KitchenIcon';
 import { prepareCookingPhoto } from '@/lib/photos/client-upload';
-import { buildImportReportEmail, failedLinkReport, type FailedLinkReport } from '@/lib/import-report';
+import { buildImportReportEmail, failedLinkReport, importReportRecipient, type FailedLinkReport } from '@/lib/import-report';
 
 type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
 type Layout = 'grid' | 'feed' | 'editorial';
@@ -78,7 +78,7 @@ export default function Home() {
   const [failedImport, setFailedImport] = useState<FailedLinkReport | null>(null);
   const [reportNote, setReportNote] = useState('');
   const reportEmail = failedImport
-    ? buildImportReportEmail(process.env.NEXT_PUBLIC_IMPORT_REPORT_EMAIL ?? 'danzammit1@gmail.com', failedImport, reportNote)
+    ? buildImportReportEmail(importReportRecipient(process.env.NEXT_PUBLIC_IMPORT_REPORT_EMAIL), failedImport, reportNote)
     : null;
   const [importing, setImporting] = useState(false);
   const [extractIdx, setExtractIdx] = useState(0);
