@@ -8,6 +8,7 @@ import {
 } from '@/lib/mobile/demo-data';
 import { vaultToMobile } from '@/lib/mobile/adapters';
 import { AUTH_CONFIGURED, useSession } from '@/lib/auth/session';
+import { resolveInitialScreen } from '@/lib/auth/startup';
 import {
   createCollection, createRecipeFromDraft, deleteRecipe, listCollections, listMealPlanItems, listRecipes,
   updateRecipe, uploadRecipePhoto, upsertMealPlanItem, type Collection, type MealPlanItem, type VaultRecipe,
@@ -97,10 +98,15 @@ export default function Home() {
   const { interstitialOpen, guardNavigate, closeInterstitial } = useInterstitial();
 
   useEffect(() => {
-    const seen = typeof window !== 'undefined' ? window.localStorage.getItem('omnicook_onboarded') : '1';
-    if (!seen) setScreen('onboarding');
+    if (sessionLoading) return;
+    let hasSeenOnboarding = false;
+    try { hasSeenOnboarding = Boolean(window.localStorage.getItem('omnicook_onboarded')); }
+    catch { /* A storage preference must not prevent an authenticated session from opening. */ }
+    const initial = resolveInitialScreen({sessionLoading, signedIn, hasSeenOnboarding, currentScreen:bootChecked ? screen : undefined});
+    if (!initial) return;
+    setScreen(initial);
     setBootChecked(true);
-  }, []);
+  }, [bootChecked, sessionLoading, signedIn, screen]);
 
   async function refreshVault() {
     setLoadingVault(true);
@@ -199,7 +205,8 @@ export default function Home() {
   function pickFilter(f: string) { setCollectionFilter(null); setFilter(f); }
   function startCook() { setCookStep(0); go('cook'); }
   function finishOnboarding() {
-    if (typeof window !== 'undefined') window.localStorage.setItem('omnicook_onboarded', '1');
+    try { window.localStorage.setItem('omnicook_onboarded', '1'); }
+    catch { /* Onboarding is optional even if browser storage is unavailable. */ }
     go('vault');
   }
 
