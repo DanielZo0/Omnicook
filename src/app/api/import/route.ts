@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { recipeSchema } from '@/lib/recipe-schema';
-import { resolveSource } from '@/lib/extraction/fetch-source';
+import { resolveSource, SourceReadError, type ExtractedSource } from '@/lib/extraction/fetch-source';
 import { selectExtractionProvider } from '@/lib/extraction/provider';
 import { ExtractionProviderError } from '@/lib/extraction/errors';
 
@@ -11,7 +11,7 @@ const importRequestSchema = z.object({
 
 // NVIDIA's free-tier endpoint can take up to ~40s on a real web page; ask
 // Vercel for headroom beyond its default function timeout.
-export const maxDuration = 45;
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const parsed = importRequestSchema.safeParse(await request.json());
@@ -27,7 +27,12 @@ export async function POST(request: Request) {
     }, { status: 503 });
   }
 
-  const { sourceUrl, text } = await resolveSource(parsed.data.source);
+  let source: ExtractedSource;
+  try { source = await resolveSource(parsed.data.source); }
+  catch (error) {
+    return NextResponse.json({ok: false, message: error instanceof SourceReadError ? error.message : 'Could not read the source. Paste its full caption instead.'}, {status: 422});
+  }
+  const { sourceUrl, text, imageUrl } = source;
 
   let raw: unknown;
   try {
@@ -44,9 +49,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: false,
       message: 'The extracted recipe was incomplete or malformed. Try pasting the full caption instead of just a link.',
-      issues: draft.error.issues.map((issue) => issue.message),
+      issues: draft.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
     }, { status: 422 });
   }
 
-  return NextResponse.json({ ok: true, draft: draft.data, sourceUrl });
+  return NextResponse.json({ ok: true, draft: draft.data, sourceUrl, imageUrl });
 }

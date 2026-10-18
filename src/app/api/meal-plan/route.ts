@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, isDbConfigured } from '@/lib/db/client';
 import { mealPlanItems, recipes } from '@/lib/db/schema';
@@ -22,7 +22,7 @@ export async function GET() {
     })
     .from(mealPlanItems)
     .innerJoin(recipes, eq(recipes.id, mealPlanItems.recipeId))
-    .where(eq(mealPlanItems.userId, userId))
+    .where(and(eq(mealPlanItems.userId, userId), eq(recipes.userId, userId)))
     .orderBy(asc(mealPlanItems.plannedFor));
 
   return NextResponse.json({ ok: true, items: rows });
@@ -44,6 +44,10 @@ export async function POST(request: Request) {
   const parsed = upsertRequestSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ ok: false, message: 'Invalid meal plan entry.' }, { status: 400 });
   const { recipeId, plannedFor, mealSlot } = parsed.data;
+
+  const [recipe] = await db().select({ id: recipes.id }).from(recipes)
+    .where(and(eq(recipes.id, recipeId), eq(recipes.userId, userId)));
+  if (!recipe) return NextResponse.json({ ok: false, message: 'Recipe not found.' }, { status: 404 });
 
   await db().insert(mealPlanItems)
     .values({ userId, recipeId, plannedFor, mealSlot })

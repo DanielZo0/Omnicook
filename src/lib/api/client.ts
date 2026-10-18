@@ -1,6 +1,7 @@
 'use client';
 
 import type { RecipeDraft } from '@/lib/recipe-schema';
+import type { PhotoMetadata } from '@/lib/photos/types';
 
 export type Aisle = 'Produce' | 'Dairy & chilled' | 'Pantry';
 
@@ -9,6 +10,9 @@ export type VaultRecipe = {
   title: string;
   creator: string | null;
   sourceUrl: string | null;
+  imageUrl: string | null;
+  photoMetadata?: PhotoMetadata | null;
+  photoPending?: boolean;
   category: string;
   prepMinutes: number | null;
   cookMinutes: number | null;
@@ -46,14 +50,14 @@ export async function listRecipes(): Promise<VaultRecipe[]> {
   return data.recipes;
 }
 
-export async function createRecipeFromDraft(draft: RecipeDraft, sourceUrl: string | null, collectionId: string | null = null): Promise<void> {
+export async function createRecipeFromDraft(draft: RecipeDraft, sourceUrl: string | null, collectionId: string | null = null, imageUrl: string | null = null): Promise<void> {
   await callApi('/api/recipes', {
     method: 'POST',
-    body: JSON.stringify({ draft, sourceUrl, collectionId }),
+    body: JSON.stringify({ draft, sourceUrl, collectionId, imageUrl }),
   });
 }
 
-export async function updateRecipe(id: string, updates: { draft?: RecipeDraft; sourceUrl?: string | null; collectionId?: string | null }): Promise<void> {
+export async function updateRecipe(id: string, updates: { draft?: RecipeDraft; sourceUrl?: string | null; collectionId?: string | null; imageUrl?: string | null }): Promise<void> {
   await callApi(`/api/recipes/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(updates),
@@ -62,6 +66,12 @@ export async function updateRecipe(id: string, updates: { draft?: RecipeDraft; s
 
 export async function deleteRecipe(id: string): Promise<void> {
   await callApi(`/api/recipes/${id}`, { method: 'DELETE' });
+}
+
+export async function uploadRecipePhoto(id: string, photo: Blob): Promise<void> {
+  const response = await fetch(`/api/recipes/${id}/photo`, {method:'POST',body:photo,headers:{'Content-Type':photo.type}});
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.message || 'Could not upload your photo.');
 }
 
 export async function listCollections(): Promise<Collection[]> {

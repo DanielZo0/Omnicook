@@ -1,4 +1,4 @@
-import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt } from './prompt';
+import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
 import { ExtractionProviderError } from './errors';
 
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
@@ -7,7 +7,7 @@ const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
 // give it real headroom rather than the 20s that worked for short inputs.
 const REQUEST_TIMEOUT_MS = 40_000;
 
-export async function extractWithNvidia(sourceUrl: string | null, text: string): Promise<unknown> {
+export async function extractWithNvidia(sourceUrl: string | null, text: string, options: ExtractionOptions = {}): Promise<unknown> {
   const apiKey = process.env.NVIDIA_API_KEY;
   if (!apiKey) throw new ExtractionProviderError('NVIDIA is not configured.');
 
@@ -17,7 +17,7 @@ export async function extractWithNvidia(sourceUrl: string | null, text: string):
   // and its model page confirms Structured Output: Supported.
   const model = process.env.NVIDIA_MODEL || 'nvidia/nemotron-3.5-lightning-30b-a3b';
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), Math.min(REQUEST_TIMEOUT_MS, options.timeoutMs ?? REQUEST_TIMEOUT_MS));
 
   let response: Response;
   try {
@@ -38,43 +38,53 @@ export async function extractWithNvidia(sourceUrl: string | null, text: string):
         chat_template_kwargs: { enable_thinking: false },
         messages: [
           { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
-          { role: 'user', content: buildExtractionUserPrompt(sourceUrl, text) },
+          { role: 'user', content: buildExtractionUserPrompt(sourceUrl, text, options.validationFeedback) },
         ],
       }),
     });
   } catch (error) {
+    clearTimeout(timeout);
     if (error instanceof Error && error.name === 'AbortError') {
       throw new ExtractionProviderError('NVIDIA did not respond in time.');
     }
     throw new ExtractionProviderError('Could not reach NVIDIA.');
-  } finally {
-    clearTimeout(timeout);
   }
-
-  if (response.status === 429) {
-    throw new ExtractionProviderError('NVIDIA rate limit reached. Try again shortly.');
-  }
-  if (!response.ok) {
-    const bodyText = await response.text().catch(() => '');
-    throw new ExtractionProviderError(`NVIDIA request failed (${response.status}): ${bodyText.slice(0, 500)}`);
-  }
-
-  const payload = await response.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) throw new ExtractionProviderError('NVIDIA returned an empty response.');
-
-  // This model supports reasoning mode; even with response_format set, strip a
-  // leading <think>...</think> trace or markdown code fence defensively.
-  const stripped = content.trim()
-    .replace(/^<think>[\s\S]*?<\/think>\s*/i, '')
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/```\s*$/, '');
 
   try {
-    return JSON.parse(stripped);
-  } catch {
-    throw new ExtractionProviderError('NVIDIA returned malformed JSON.');
+    if (response.status === 429) {
+      throw new ExtractionProviderError('NVIDIA rate limit reached. Try again shortly.');
+    }
+    if (!response.ok) {
+      const bodyText = await response.text();
+      throw new ExtractionProviderError(`NVIDIA request failed (${response.status}): ${bodyText.slice(0, 500)}`);
+    }
+
+    const payload = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = payload.choices?.[0]?.message?.content;
+    if (!content) throw new ExtractionProviderError('NVIDIA returned an empty response.');
+
+    // This model supports reasoning mode; even with response_format set, strip a
+    // leading <think>...</think> trace or markdown code fence defensively.
+    const stripped = content.trim()
+      .replace(/^<think>[\s\S]*?<\/think>\s*/i, '')
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/```\s*$/, '');
+
+    try {
+      return JSON.parse(stripped);
+    } catch {
+      throw new ExtractionProviderError('NVIDIA returned malformed JSON.');
+    }
+  } catch (error) {
+    if (error instanceof ExtractionProviderError) throw error;
+    if (controller.signal.aborted) {
+      throw new ExtractionProviderError('NVIDIA did not respond in time.');
+    }
+    throw new ExtractionProviderError('NVIDIA returned an unreadable response.');
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
   }
 }

@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:isolation": "node scripts/account-isolation.mjs",
+    "test": "node --test tests/*.test.cjs",
+    "db:recipe-images": "node scripts/migrate-recipe-images.mjs",
+    "db:recipe-photos": "node scripts/migrate-recipe-photos.mjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
@@ -16,10 +20,12 @@
     "@neondatabase/neon-js": "^0.7.0-beta",
     "@neondatabase/serverless": "^1.1.0",
     "drizzle-orm": "^0.45.2",
-    "next": "16.3.4",
+    "next": "16.3.8",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "server-only": "^0.0.1",
+    "sharp": "0.35.4",
+    "undici": "^7.30.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {

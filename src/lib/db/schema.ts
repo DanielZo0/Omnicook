@@ -1,4 +1,5 @@
-import { pgEnum, pgTable, integer, numeric, text, timestamp, uniqueIndex, uuid, varchar, date } from 'drizzle-orm/pg-core';
+import { pgEnum, pgTable, integer, numeric, text, timestamp, uniqueIndex, uuid, varchar, date, jsonb } from 'drizzle-orm/pg-core';
+import type { PhotoMetadata } from '../photos/types';
 
 export const recipeCategoryEnum = pgEnum('recipe_category', ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Other']);
 export const groceryAisleEnum = pgEnum('grocery_aisle', ['Produce', 'Dairy & chilled', 'Pantry']);
@@ -18,6 +19,9 @@ export const recipes = pgTable('recipes', {
   title: varchar('title', { length: 180 }).notNull(),
   creator: text('creator'),
   sourceUrl: text('source_url'),
+  imageUrl: text('image_url'),
+  photoData: text('photo_data'),
+  photoMetadata: jsonb('photo_metadata').$type<PhotoMetadata>(),
   category: recipeCategoryEnum('category').notNull().default('Other'),
   prepMinutes: integer('prep_minutes'),
   cookMinutes: integer('cook_minutes'),

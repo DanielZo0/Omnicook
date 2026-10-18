@@ -1,3 +1,4 @@
+import type { PhotoMetadata } from '../photos/types';
 export type Aisle = 'Produce' | 'Dairy & chilled' | 'Pantry';
 
 export type MobileIngredient = { amt: string; name: string; aisle: Aisle };
@@ -11,6 +12,8 @@ export type MobileRecipe = {
   time: string;
   n: number; // servings
   img: string | null;
+  photoMetadata?: PhotoMetadata | null;
+  photoPending?: boolean;
   sourceUrl: string | null;
   collectionId: string | null;
   a: MobileIngredient[]; // ingredients
