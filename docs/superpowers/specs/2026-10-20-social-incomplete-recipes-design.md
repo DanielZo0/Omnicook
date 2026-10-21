@@ -1,7 +1,7 @@
 # Social recipes with missing instructions
 
 Date: 2026-10-20
-State: detailed design for review; the user approved the high-level flow, not these implementation defaults.
+State: approved by the user on 2026-10-21; implementation plan is the next review artifact.
 
 ## Intent
 
