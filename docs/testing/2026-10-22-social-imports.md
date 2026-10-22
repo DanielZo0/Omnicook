@@ -4,6 +4,8 @@ Branch: codex/social-incomplete-imports. No push, production migration or deploy
 
 ## Verified
 
+- Final production Webpack build and subsequent TypeScript no-emit check both exit 0.
+- Production-build HTTP verification: home 200, anonymous recipes 401, real reel import 200/complete with 11 ingredients, 21 steps and both source URLs; no recipe saved.
 - 81 node:test regressions pass, including partial extraction, cumulative budgets, origin/redirect restrictions, multiple originals, section-aware exact quantity matching, Pinterest destinations, device draft isolation/expiry, explicit completion and non-destructive recovery dismissal.
 - Final live read-only import of the reported Instagram reel produced 11 ingredients, 20 steps and https://www.tuorlorosso.it/nascondini-fatti-in-casa/ as the verified original. Model step segmentation can vary between runs.
 - 14 integration assertions invoke actual recipe HTTP handlers and real SQL on a schema-only Neon branch. They cover both URLs through save/load/edit, omitted versus cleared provenance, cross-owner denial, incomplete payload rejection, legacy null defaults, and retention of uploaded-photo bytes. Authentication identity is stubbed in this harness; these are not interactive sign-in checks. Temporary recipes/seed markers were removed.
