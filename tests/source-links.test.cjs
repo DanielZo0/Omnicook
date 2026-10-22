@@ -1,0 +1,3 @@
+require('./register-ts.cjs');const {test}=require('node:test');const assert=require('node:assert/strict');
+const {sourceLinksSchema}=require('../src/lib/recipes/source-links.ts');
+test('source links accept HTTP and reject credentials and unsafe schemes',()=>{assert.equal(sourceLinksSchema.safeParse({sourceUrl:'https://instagram.com/p/a/',originalRecipeUrl:'https://chef.example/dish'}).success,true);for(const url of ['javascript:alert(1)','https://u:p@chef.example/','file:///tmp','http://localhost/','http://127.0.0.1/private'])assert.equal(sourceLinksSchema.safeParse({sourceUrl:url}).success,false);assert.equal(sourceLinksSchema.parse({sourceUrl:null}).originalRecipeUrl,null);});

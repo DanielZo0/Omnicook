@@ -1,6 +1,7 @@
 import { after, NextResponse } from 'next/server';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { sourceLinkSchema } from '@/lib/recipes/source-links';
 import { db, isDbConfigured } from '@/lib/db/client';
 import { collections, recipeIngredients, recipes, recipeSteps } from '@/lib/db/schema';
 import { requireUserId } from '@/lib/auth/require-user';
@@ -13,7 +14,8 @@ export const maxDuration = 120;
 
 const updateRequestSchema = z.object({
   draft: recipeSchema.optional(),
-  sourceUrl: z.string().nullable().optional(),
+  sourceUrl: sourceLinkSchema.nullable().optional(),
+  originalRecipeUrl: sourceLinkSchema.nullable().optional(),
   collectionId: z.string().uuid().nullable().optional(),
   imageUrl: imageUrlSchema.optional(),
 });
@@ -28,7 +30,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const parsed = updateRequestSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ ok: false, message: 'Invalid update payload.' }, { status: 400 });
-  const { draft, sourceUrl, collectionId, imageUrl } = parsed.data;
+  const { draft, sourceUrl, originalRecipeUrl, collectionId, imageUrl } = parsed.data;
 
   const [existing] = await db().select({ id: recipes.id, title:recipes.title, photoMetadata:recipes.photoMetadata }).from(recipes)
     .where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
@@ -59,6 +61,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updates.servings = draft.servings != null ? String(draft.servings) : null;
   }
   if (sourceUrl !== undefined) updates.sourceUrl = sourceUrl;
+  if (originalRecipeUrl !== undefined) updates.originalRecipeUrl = originalRecipeUrl;
   if (imageUrl !== undefined) updates.imageUrl = normalizeImageUrl(imageUrl);
   if (imageUrl !== undefined && existing.photoMetadata?.kind !== 'user') {
     resetPhoto = true;

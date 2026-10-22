@@ -12,7 +12,8 @@
     "db:recipe-images": "node scripts/migrate-recipe-images.mjs",
     "db:recipe-photos": "node scripts/migrate-recipe-photos.mjs",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:recipe-provenance": "node scripts/migrate-recipe-provenance.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",

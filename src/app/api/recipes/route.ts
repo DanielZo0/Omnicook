@@ -1,6 +1,7 @@
 import { after, NextResponse } from 'next/server';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
+import { sourceLinkSchema } from '@/lib/recipes/source-links';
 import { db, isDbConfigured } from '@/lib/db/client';
 import { collections, recipeIngredients, recipes, recipeSteps } from '@/lib/db/schema';
 import { requireUserId } from '@/lib/auth/require-user';
@@ -35,6 +36,7 @@ export async function GET() {
     title: r.title,
     creator: r.creator,
     sourceUrl: r.sourceUrl,
+    originalRecipeUrl:r.originalRecipeUrl,
     imageUrl: r.hasPhoto ? `/api/recipes/${r.id}/photo?v=${r.updatedAt.getTime()}` : r.imageUrl,
     photoMetadata: r.photoMetadata,
     photoPending: photosEnabled() && (photoNeedsWork(r.photoMetadata) || r.photoMetadata?.status === 'pending'),
@@ -59,7 +61,8 @@ export async function GET() {
 
 const createRequestSchema = z.object({
   draft: recipeSchema,
-  sourceUrl: z.string().nullable(),
+  sourceUrl: sourceLinkSchema.nullable(),
+  originalRecipeUrl: sourceLinkSchema.nullable().optional().default(null),
   collectionId: z.string().uuid().nullable(),
   imageUrl: imageUrlSchema.optional().default(null),
 });
@@ -73,7 +76,7 @@ export async function POST(request: Request) {
 
   const parsed = createRequestSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ ok: false, message: 'Invalid recipe payload.' }, { status: 400 });
-  const { draft, sourceUrl, collectionId, imageUrl } = parsed.data;
+  const { draft, sourceUrl, originalRecipeUrl, collectionId, imageUrl } = parsed.data;
 
   if (collectionId !== null) {
     const [collection] = await db().select({ id: collections.id }).from(collections)
@@ -86,6 +89,7 @@ export async function POST(request: Request) {
     title: draft.title,
     creator: draft.creator,
     sourceUrl,
+    originalRecipeUrl,
     imageUrl: normalizeImageUrl(imageUrl),
     category: draft.category,
     prepMinutes: draft.prepMinutes,

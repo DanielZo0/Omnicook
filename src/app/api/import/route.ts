@@ -4,8 +4,9 @@ import { SourceReadError } from '@/lib/extraction/fetch-source';
 import { selectExtractionProvider } from '@/lib/extraction/provider';
 import { ExtractionProviderError } from '@/lib/extraction/errors';
 import { importExtractionSchema } from '@/lib/extraction/import-schema';
+import {sourceLinkSchema} from '@/lib/recipes/source-links';
 import { importRecipe } from '@/lib/extraction/import-recipe';
-const importRequestSchema=z.object({source:z.string().trim().min(4).max(20000),captionDraft:importExtractionSchema.optional(),originalRecipeUrl:z.string().url().max(2048).optional()});
+const importRequestSchema=z.object({source:z.string().trim().min(4).max(20000),captionDraft:importExtractionSchema.optional(),originalRecipeUrl:sourceLinkSchema.optional()});
 export const maxDuration=60;
 export async function POST(request:Request){
  let body:unknown;try{body=await request.json();}catch{return NextResponse.json({ok:false,message:'Paste a recipe URL or caption first.'},{status:400});}
