@@ -6,6 +6,7 @@ export type DraftOwner=z.infer<typeof ownerSchema>;
 const storedDraftSchema=z.object({version:z.literal(1),owner:ownerSchema,updatedAt:z.number().finite(),expiresAt:z.number().finite(),draft:editableRecipeSchema,
  sourceUrl:z.string().max(2048).nullable(),imageUrl:z.string().max(4096).nullable(),originalRecipeUrl:z.string().max(2048).nullable().default(null),
  editRecipeId:z.string().nullable(),collectionId:z.string().nullable(),sourceText:z.string().max(20000),
+ completionConfirmed:z.boolean().default(false),
  importStatus:z.enum(['complete','incomplete']).default('incomplete'),missingFields:z.array(z.enum(['ingredients','instructions'])).default(['instructions']),
 });
 export type StoredDraft=z.infer<typeof storedDraftSchema>;
