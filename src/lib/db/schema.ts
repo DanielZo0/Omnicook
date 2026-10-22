@@ -1,4 +1,5 @@
-import { pgEnum, pgTable, integer, numeric, text, timestamp, uniqueIndex, uuid, varchar, date, jsonb } from 'drizzle-orm/pg-core';
+import { pgEnum, pgTable, integer, numeric, text, timestamp, uniqueIndex, uuid, varchar, date, jsonb, boolean, primaryKey, check } from 'drizzle-orm/pg-core';
+import {sql} from 'drizzle-orm';
 import type { PhotoMetadata } from '../photos/types';
 
 export const recipeCategoryEnum = pgEnum('recipe_category', ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Other']);
@@ -61,13 +62,45 @@ export const seededUsers = pgTable('seeded_users', {
   seededAt: timestamp('seeded_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const plannerSnapshots = pgTable('planner_snapshots', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: text('user_id').notNull(),
+  recipe: jsonb('recipe').notNull(),
+  savedRecipeId: uuid('saved_recipe_id').references(() => recipes.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const mealPlanItems = pgTable('meal_plan_items', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: text('user_id').notNull(),
-  recipeId: uuid('recipe_id').notNull().references(() => recipes.id, { onDelete: 'cascade' }),
+  recipeId: uuid('recipe_id').references(() => recipes.id, { onDelete: 'cascade' }),
+  snapshotId: uuid('snapshot_id').references(() => plannerSnapshots.id),
+  servings: numeric('servings').notNull().default('1'),
+  locked: boolean('locked').notNull().default(true),
+  version: integer('version').notNull().default(1),
   plannedFor: date('planned_for').notNull(),
   mealSlot: varchar('meal_slot', { length: 20 }).notNull().default('dinner'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('meal_plan_items_user_day_slot_idx').on(table.userId, table.plannedFor, table.mealSlot),
+  check('meal_plan_source_one',sql`(${table.recipeId} IS NOT NULL)::int + (${table.snapshotId} IS NOT NULL)::int = 1`),
 ]);
+
+export const plannerState=pgTable('planner_state',{
+ userId:text('user_id').primaryKey(),revision:integer('revision').notNull().default(0),preferences:jsonb('preferences').notNull().default({}),
+});
+export const nutritionAnalyses=pgTable('nutrition_analyses',{
+ id:uuid('id').defaultRandom().primaryKey(),userId:text('user_id').notNull(),recipeId:uuid('recipe_id').notNull().references(()=>recipes.id,{onDelete:'cascade'}),fingerprint:text('fingerprint').notNull(),providerKey:text('provider_key').notNull(),analysis:jsonb('analysis').notNull(),matches:jsonb('matches').notNull().default({}),createdAt:timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[uniqueIndex('nutrition_analyses_owner_recipe_fingerprint_provider').on(t.userId,t.recipeId,t.fingerprint,t.providerKey)]);
+export const nutrientFoodCache=pgTable('nutrient_food_cache',{
+ providerId:text('provider_id').notNull(),externalId:text('external_id').notNull(),normalizationVersion:text('normalization_version').notNull(),record:jsonb('record').notNull(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),
+},t=>[primaryKey({columns:[t.providerId,t.externalId,t.normalizationVersion]})]);
+export const plannerGenerations=pgTable('planner_generations',{
+ id:uuid('id').primaryKey(),userId:text('user_id').notNull(),draft:jsonb('draft').notNull(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),
+});
+export const plannerApplications=pgTable('planner_applications',{
+ userId:text('user_id').notNull(),idempotencyKey:uuid('idempotency_key').notNull(),generationId:uuid('generation_id').notNull(),result:jsonb('result').notNull(),
+},t=>[primaryKey({columns:[t.userId,t.idempotencyKey]})]);
+export const plannerProviderBudgets=pgTable('planner_provider_budgets',{
+ budgetKey:text('budget_key').primaryKey(),used:integer('used').notNull(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),
+});

@@ -1,0 +1,2 @@
+require('./register-ts.cjs');const {test}=require('node:test'),assert=require('node:assert/strict');const {responseIsCurrent}=require('../src/lib/planner/ui-state.ts');
+test('account switches and newer requests discard old planner responses',()=>{assert.equal(responseIsCurrent({owner:'a',request:1},{owner:'b',request:1}),false);assert.equal(responseIsCurrent({owner:'a',request:1},{owner:'a',request:2}),false);assert.equal(responseIsCurrent({owner:'a',request:2},{owner:'a',request:2}),true);});

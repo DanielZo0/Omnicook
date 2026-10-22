@@ -1,9 +1,14 @@
+import {scaleQuantity} from '../nutrition/quantity';
 import type { PhotoMetadata } from '../photos/types';
 export type Aisle = 'Produce' | 'Dairy & chilled' | 'Pantry';
 
 export type MobileIngredient = { amt: string; name: string; aisle: Aisle };
 
 export type MobileRecipe = {
+  structuredIngredients?: import('../planner/types').StructuredIngredient[];
+  yieldServings?: number | null;
+  prepMinutes?: number | null;
+  cookMinutes?: number | null;
   id: string;
   t: string; // title
   c: string; // creator
@@ -74,9 +79,9 @@ export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sa
 export const EXTRACT_STEPS = ['Reading the source', 'Parsing recipe details', 'Extracting ingredients', 'Extracting steps', 'Finalizing'];
 
 export function scaleAmount(amount: string, servings: number): string {
-  if (servings === 1) return amount;
-  const n = parseFloat(amount);
-  if (!n) return amount;
-  const v = n * servings;
-  return amount.replace(String(n), Number.isInteger(v) ? String(v) : v.toFixed(1));
+  if(servings===1)return amount;
+  const match=amount.match(/^([\d\s.,/½¼¾⅓⅔⅛⅜⅝⅞–-]+)(.*)$/);
+  if(!match)return amount;
+  const scaled=scaleQuantity(match[1].trim(),servings);
+  return scaled===match[1].trim()?amount:scaled+(match[1].endsWith(' ')?' ':'')+match[2];
 }

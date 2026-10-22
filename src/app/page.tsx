@@ -30,6 +30,7 @@ import { readDraft, writeDraft, clearDraft, draftOwnerKey, type StoredDraft, typ
 import { RecipeEditor } from '@/components/recipes/RecipeEditor';
 import { DraftRecovery } from '@/components/recipes/DraftRecovery';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Planner } from '@/components/planner/Planner';
 import {safeSourceLink} from '@/lib/recipes/source-links';
 type ReviewState={draft:EditableRecipeDraft;sourceUrl:string|null;imageUrl:string|null;originalRecipeUrl?:string|null;status?:'complete'|'incomplete';missingFields?:('ingredients'|'instructions')[];message?:string;completionConfirmed?:boolean};
 type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
@@ -39,19 +40,6 @@ const INK = '#28563d', GREEN = '#28563d', LIME = '#f9d94e', CORAL = '#28563d', P
 const SCROLL = 'overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain';
 const TOP_SAFE = 'calc(env(safe-area-inset-top,0px) + 20px)';
 const BOTTOM_SAFE = '28px';
-
-function currentWeek() {
-  const today = new Date();
-  const dow = today.getDay();
-  const mondayOffset = dow === 0 ? -6 : 1 - dow;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + mondayOffset);
-  return DAYS.map((day, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return { day, short: day.slice(0, 3), iso: d.toISOString().slice(0, 10) };
-  });
-}
 
 function blankDraft(): RecipeDraft {
   return {
@@ -74,6 +62,7 @@ export default function Home() {
 
   const [bootChecked, setBootChecked] = useState(false);
   const [screen, setScreen] = useState<Screen>('vault');
+  const [planningRecipeId,setPlanningRecipeId]=useState<string|null>(null);
   const [layout, setLayout] = useState<Layout>('grid');
   const [filter, setFilter] = useState('All recipes');
   const [query, setQuery] = useState('');
@@ -110,8 +99,7 @@ export default function Home() {
   const [mealPlan, setMealPlan] = useState<MealPlanItem[]>([]);
   const [collectionsState, setCollectionsState] = useState<Collection[]>([]);
   const [loadingVault, setLoadingVault] = useState(false);
-  const [demoPlan, setDemoPlan] = useState<Record<string, string | null>>({ Monday: 'd1', Tuesday: 'd2', Wednesday: null, Thursday: 'd3', Friday: null, Saturday: null, Sunday: 'd4' });
-  const [ticked, setTicked] = useState<Record<string, boolean>>({});
+  const vaultRequest = useRef(0);
   const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -148,34 +136,38 @@ export default function Home() {
   }, [bootChecked, sessionLoading, signedIn, screen]);
 
   async function refreshVault() {
+    const request=++vaultRequest.current, requestOwner=ownerKey;
     setLoadingVault(true);
     try {
       const [recipes, plan, collectionsList] = await Promise.all([listRecipes(), listMealPlanItems(), listCollections()]);
+      if(request!==vaultRequest.current || requestOwner!==liveStamp.current.ownerKey)return;
       setVaultRecipes(recipes);
       setMealPlan(plan);
       setCollectionsState(collectionsList);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Could not load your vault.');
+      if(request===vaultRequest.current && requestOwner===liveStamp.current.ownerKey)setStatus(error instanceof Error ? error.message : 'Could not load your vault.');
     } finally {
-      setLoadingVault(false);
+      if(request===vaultRequest.current && requestOwner===liveStamp.current.ownerKey)setLoadingVault(false);
     }
   }
 
   useEffect(() => {
+    vaultRequest.current++;setVaultRecipes([]);setMealPlan([]);setCollectionsState([]);
     if (signedIn) refreshVault();
     else { setVaultRecipes([]); setMealPlan([]); setCollectionsState([]); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedIn]);
+  }, [signedIn,ownerKey]);
 
   useEffect(() => () => { if (extractTimer.current) clearInterval(extractTimer.current); }, []);
 
   useEffect(() => {
     if (!signedIn || !vaultRecipes.some(recipe => recipe.photoPending)) return;
+    const requestOwner=ownerKey;
     const timer = setTimeout(() => {
-      listRecipes().then(setVaultRecipes).catch(() => {});
+      listRecipes().then(recipes=>{if(requestOwner===liveStamp.current.ownerKey)setVaultRecipes(recipes);}).catch(() => {});
     }, 5000);
     return () => clearTimeout(timer);
-  }, [signedIn, vaultRecipes]);
+  }, [signedIn, vaultRecipes,ownerKey]);
 
   async function addCookingPhoto(file: File, recipeId: string) {
     if (uploadingPhoto) return;
@@ -192,31 +184,6 @@ export default function Home() {
 
   const recipes: MobileRecipe[] = signedIn ? vaultRecipes.map(vaultToMobile) : DEMO_RECIPES;
   const active = recipes.find((r) => r.id === activeId) ?? recipes[0];
-  const weekDates = useMemo(currentWeek, []);
-
-  const weekRecipes = useMemo(() => weekDates.map((d) => {
-    const id = signedIn ? mealPlan.find((mp) => mp.plannedFor === d.iso)?.recipeId : demoPlan[d.day];
-    return recipes.find((r) => r.id === id) ?? null;
-  }), [weekDates, mealPlan, demoPlan, recipes, signedIn]);
-
-  const groceryNames = useMemo(() => {
-    const set = new Set<string>();
-    weekRecipes.forEach((r) => r?.a.forEach((ingredient) => set.add(ingredient.name)));
-    return [...set];
-  }, [weekRecipes]);
-
-  const grocerySections = useMemo(() => {
-    const sections: Record<Aisle, string[]> = { Produce: [], 'Dairy & chilled': [], Pantry: [] };
-    const seen = new Set<string>();
-    weekRecipes.forEach((r) => r?.a.forEach((ingredient) => {
-      if (seen.has(ingredient.name)) return;
-      seen.add(ingredient.name);
-      sections[ingredient.aisle].push(ingredient.name);
-    }));
-    return (Object.entries(sections) as [Aisle, string[]][]).filter(([, items]) => items.length > 0);
-  }, [weekRecipes]);
-
-  const plannedCount = weekRecipes.filter(Boolean).length;
   const filteredVault = recipes.filter((r) => matchesFilter(r, filter));
   const showVaultCards = filteredVault.length > 0;
   const vaultEmptyTitle = loadingVault
@@ -477,24 +444,6 @@ export default function Home() {
       return { ...cur, draft: { ...cur.draft, steps } };
     });
   }
-
-  function cycleDay(day: string, iso: string) {
-    if (recipes.length === 0) return;
-    if (signedIn) {
-      const currentId = mealPlan.find((mp) => mp.plannedFor === iso)?.recipeId;
-      const idx = recipes.findIndex((r) => r.id === currentId);
-      const next = recipes[(idx + 1) % recipes.length];
-      upsertMealPlanItem(next.id, iso, 'dinner').then(refreshVault).catch((error) => setStatus(error instanceof Error ? error.message : 'Could not update the plan.'));
-    } else {
-      setDemoPlan((prev) => {
-        const idx = recipes.findIndex((r) => r.id === prev[day]);
-        const next = recipes[(idx + 1) % recipes.length];
-        return { ...prev, [day]: next.id };
-      });
-    }
-  }
-
-  function toggleTick(name: string) { setTicked((prev) => ({ ...prev, [name]: !prev[name] })); }
 
   function askChef() {
     if (!chefQuestion.trim() || chefLoading) return;
@@ -774,7 +723,7 @@ export default function Home() {
         </div>
       </div>
         <div className="detail-actions" style={s('padding:8px 20px calc(env(safe-area-inset-bottom,0px) + 24px);display:flex;gap:10px')}>
-          <button onClick={() => go('planner')} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>▦ Plan</button>
+          <button onClick={() => {setPlanningRecipeId(active.id);go('planner');}} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>Add to plan</button>
           <button onClick={startCook} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700`)}>Start cooking</button>
         </div>
     </div>}
@@ -808,41 +757,7 @@ export default function Home() {
       </div>
     </div>}
 
-    {screen === 'planner' && <div className="utility-screen planner-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE}`)}>
-      <header className="utility-heading planner-heading"><h1>Your weekly menu</h1><p>A little planning. More time around the table.</p></header>
-      <div className="week-board">
-        {weekDates.map((d, i) => { const rec = weekRecipes[i]; return <div key={d.iso} className="day-card">
-          <span style={s(`width:34px;flex:none;font-size:11.5px;font-weight:700;color:${MUTED}`)}>{d.short}</span>
-          {rec?.img && <RecipeImage src={rec.img} alt={rec.t} style={s('width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none')} />}
-          <span style={s(`flex:1;font-size:13.5px;font-weight:600;line-height:1.3;color:${rec ? INK : '#9aa398'}`)}>{rec ? rec.t : 'Nothing planned yet'}</span>
-          <button aria-label={`${rec ? 'Change' : 'Add'} recipe for ${d.day}`} onClick={() => cycleDay(d.day, d.iso)} style={s('flex:none;border:0;border-radius:9px;padding:8px 11px;background:#f0f2d9;color:#28563d;font-size:11.5px;font-weight:700')}>{rec ? 'Change' : 'Add'}</button>
-        </div>; })}
-      </div>
-      <button onClick={() => go('grocery')} style={s('display:flex;align-items:center;justify-content:space-between;width:calc(100% - 40px);margin:14px 20px 0;padding:17px;border:0;border-radius:17px;background:#f0f2d9;text-align:left')}>
-        <span style={s('display:flex;flex-direction:column;gap:3px')}>
-          <b style={s("font-family:var(--display);font-size:17px")}>Shopping list</b>
-          <span style={s(`font-size:12px;color:${MUTED}`)}>{groceryNames.length} items from {plannedCount} planned recipes</span>
-        </span>
-        <span style={s('font-size:15px;color:#8a6a1f')}>›</span>
-      </button>
-    </div>}
-
-    {screen === 'grocery' && <div className="utility-screen grocery-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE};background:${PAPER}`)}>
-      <div style={s('display:flex;align-items:center;gap:11px;padding:0 20px')}>
-        <button onClick={() => go('planner')} style={s(`width:44px;height:44px;border:1px solid ${LINE};border-radius:50%;background:${CARD};font-size:17px`)}>‹</button>
-        <span style={s(`font-size:13px;font-weight:700;color:${MUTED}`)}>Back to plan</span>
-      </div>
-      <header className="utility-heading planner-heading"><h1>Your shopping list</h1><p>{groceryNames.length} ingredients from {plannedCount} planned recipes.</p></header>
-      {grocerySections.length === 0 && <p style={s(`padding:16px 20px 0;font-size:12.5px;color:${MUTED}`)}>Plan a few dinners to build your list.</p>}
-      {grocerySections.map(([name, items]) => <div key={name} style={s('margin:16px 20px 0;padding:16px;border-radius:17px;background:#f0f2d9')}>
-        <div style={s(`font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${CORAL};margin-bottom:6px`)}>{name}</div>
-        {items.map((item) => { const on = !!ticked[item]; return <button key={item} aria-pressed={!!ticked[item]} onClick={() => toggleTick(item)} style={s('display:flex;align-items:center;gap:11px;width:100%;padding:9px 0;border:0;background:transparent;text-align:left')}>
-          <span style={s(`display:grid;place-items:center;width:19px;height:19px;flex:none;border:1.5px solid #cfc7ae;border-radius:5px;font-size:11px;color:#fff;background:${on ? GREEN : 'transparent'}`)}>{on ? '✓' : ''}</span>
-          <span style={s(`font-size:13.5px;color:${on ? '#9aa398' : INK};text-decoration:${on ? 'line-through' : 'none'}`)}>{item}</span>
-        </button>; })}
-      </div>)}
-      <div style={s(`margin:16px 20px 0;font-size:12px;color:${MUTED}`)}>Tap an item to tick it off. Duplicates across recipes are merged automatically.</div>
-    </div>}
+    {(screen === 'planner' || screen === 'grocery') && <Planner key={ownerKey} ownerKey={ownerKey} signedIn={signedIn} recipes={recipes} mode={screen==='planner'?'planner':'shopping'} initialRecipeId={planningRecipeId} onConsumeRecipe={()=>setPlanningRecipeId(null)} onOpenRecipe={openRecipe} onMode={mode=>go(mode==='planner'?'planner':'grocery')} onCookbookChanged={refreshVault} />}
 
     {screen === 'profile' && <div className="utility-screen profile-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE}`)}>
       {!signedIn ? <div style={s('padding:20px')}>
