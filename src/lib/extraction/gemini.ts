@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
+import { systemPromptFor, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
 import { ExtractionProviderError } from './errors';
 
 export async function extractWithGemini(sourceUrl: string | null, text: string, options: ExtractionOptions = {}): Promise<unknown> {
@@ -15,7 +15,7 @@ export async function extractWithGemini(sourceUrl: string | null, text: string, 
       model,
       contents: buildExtractionUserPrompt(sourceUrl, text, options.validationFeedback),
       config: {
-        systemInstruction: EXTRACTION_SYSTEM_PROMPT,
+        systemInstruction: systemPromptFor(options.mode),
         responseMimeType: 'application/json',
         temperature: 0.2,
         httpOptions: {timeout: Math.min(40000, options.timeoutMs ?? 40000)},

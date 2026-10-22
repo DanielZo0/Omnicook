@@ -1,4 +1,4 @@
-import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
+import { systemPromptFor, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
 import { ExtractionProviderError } from './errors';
 
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
@@ -37,7 +37,7 @@ export async function extractWithNvidia(sourceUrl: string | null, text: string, 
         // dropped a real extraction call from 55s+ (timing out) to under 2s.
         chat_template_kwargs: { enable_thinking: false },
         messages: [
-          { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
+          { role: 'system', content: systemPromptFor(options.mode) },
           { role: 'user', content: buildExtractionUserPrompt(sourceUrl, text, options.validationFeedback) },
         ],
       }),

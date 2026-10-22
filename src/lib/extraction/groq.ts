@@ -1,4 +1,4 @@
-import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
+import { systemPromptFor, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
 import { ExtractionProviderError } from './errors';
 
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
@@ -31,7 +31,7 @@ export async function extractWithGroq(sourceUrl: string | null, text: string, op
         ...(/^openai\/gpt-oss-/.test(model) ? {reasoning_effort: 'low'} : {}),
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
+          { role: 'system', content: systemPromptFor(options.mode) },
           { role: 'user', content: buildExtractionUserPrompt(sourceUrl, text, options.validationFeedback) },
         ],
       }),

@@ -2,6 +2,7 @@ import { extractWithGroq } from './groq';
 import { extractWithNvidia } from './nvidia';
 import { extractWithXai } from './xai';
 import { extractWithGemini } from './gemini';
+import { importExtractionSchema } from './import-schema';
 import { recipeSchema } from '../recipe-schema';
 import type { ExtractionOptions } from './prompt';
 
@@ -10,18 +11,18 @@ export type ExtractionProvider = {
   extract: (sourceUrl: string | null, text: string, options?: ExtractionOptions) => Promise<unknown>;
 };
 
-function withValidationRepair(provider: ExtractionProvider): ExtractionProvider {
+export function withValidationRepair(provider: ExtractionProvider): ExtractionProvider {
   return {...provider, extract: async (sourceUrl, text, options) => {
     // A 40-second total AI budget plus the 14-second source budget fits the
     // route's 60-second limit. Never start an unbounded retry.
     const deadline = Date.now() + Math.min(40000, options?.timeoutMs ?? 40000);
     const raw = await provider.extract(sourceUrl, text, {...options, timeoutMs: Math.max(1, deadline - Date.now())});
-    const parsed = recipeSchema.safeParse(raw);
+    const parsed = (options?.mode === 'import' ? importExtractionSchema : recipeSchema).safeParse(raw);
     const refused = raw && typeof raw === 'object' && 'error' in raw;
     const remaining = deadline - Date.now();
     if (parsed.success || refused || remaining < 5000) return raw;
     const validationFeedback = parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ');
-    return provider.extract(sourceUrl, text, {timeoutMs: remaining, validationFeedback});
+    return provider.extract(sourceUrl, text, {...options, timeoutMs: remaining, validationFeedback});
   }};
 }
 
