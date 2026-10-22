@@ -1,0 +1,8 @@
+require('./register-ts.cjs');const {test}=require('node:test');const assert=require('node:assert/strict');
+const {readDraft,writeDraft,clearDraft}=require('../src/lib/recipes/draft-storage.ts');
+const draft={title:'Nascondini',ingredients:[{name:'farina',position:0}],steps:[]};
+const owner={kind:'guest'};const now=1000;const entry={version:1,owner,updatedAt:now,expiresAt:now+86400000,draft,sourceUrl:null,imageUrl:null,sourceText:'caption',collectionId:null,editRecipeId:null};
+const storage=()=>{const m=new Map();return {getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)}};
+test('partial recovery defaults legacy metadata and enforces owner/expiry',()=>{const s=storage();assert.equal(writeDraft(s,entry).ok,true);const a=readDraft(s,owner,now);assert.equal(a.draft.steps.length,0);assert.equal(a.originalRecipeUrl,null);assert.equal(readDraft(s,{kind:'user',userId:'b'},now),null);assert.equal(readDraft(s,owner,entry.expiresAt),null);});
+test('user drafts are isolated, discard is scoped, corrupt data never restores',()=>{const s=storage();const a={kind:'user',userId:'a'},b={kind:'user',userId:'b'};writeDraft(s,{...entry,owner:a,expiresAt:now+604800000});assert.equal(readDraft(s,b,now),null);clearDraft(s,b);assert.ok(readDraft(s,a,now));clearDraft(s,a);assert.equal(readDraft(s,a,now),null);s.setItem('omnicook:draft:v1:guest','broken');assert.equal(readDraft(s,owner,now),null);});
+test('storage failure is explicit and does not throw',()=>{const s={getItem:()=>{throw Error()},setItem:()=>{throw Error()},removeItem:()=>{throw Error()}};assert.equal(writeDraft(s,entry).ok,false);assert.equal(readDraft(s,owner,now),null);assert.equal(clearDraft(s,owner),false);});
