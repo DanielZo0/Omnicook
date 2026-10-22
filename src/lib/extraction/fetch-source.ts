@@ -117,14 +117,23 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
   } finally { clearTimeout(timer); }
 }
 
-export type SourceDocument={sourceUrl:string|null;imageUrl:string|null;text:string;page:ReturnType<typeof parseSourcePage>|null};
+export type SourceDocument={sourceUrl:string|null;imageUrl:string|null;text:string;page:ReturnType<typeof parseSourcePage>|null;originalRecipeUrl?:string|null};
 export async function readSource(source:string,budget:ImportBudget):Promise<SourceDocument>{
  const input=source.trim();
  if(!/^https?:\/\//i.test(input))return {sourceUrl:null,imageUrl:null,text:input.slice(0,10000),page:null};
  if(extractYoutubeVideoId(input)){const result=await budget.runSource(()=>resolveSource(input));return {...result,page:null};}
  const result=await budget.runSource(signal=>fetchSourcePage(input,signal));
- const page=result.page,isSocial=socialHost(new URL(result.url).hostname);
- const text=page.structuredText||(isSocial?[page.caption,page.description].filter(Boolean).join('\n\n'):[page.title,page.description,page.body].filter(Boolean).join('\n\n'));
+ let selected=result;
+ if(/(?:^|\.)(?:pinterest\.[a-z.]+|pin\.it)$/.test(new URL(result.url).hostname)){
+  for(const link of result.page.destinations.slice(0,3)){
+   try{const destination=new URL(link,result.url);if(socialHost(destination.hostname))continue;
+    const candidate=await budget.runSource(signal=>fetchSourcePage(destination.href,signal,()=>budget.takeAdditionalRequest()));
+    if(candidate.page.structuredText||(candidate.page.body.length>=60&&/\d/.test(candidate.page.body))){selected=candidate;break;}
+   }catch(error){if(error instanceof SourceReadError&&/public|address/.test(error.message))throw error;}
+  }
+ }
+ const page=selected.page,isSocial=socialHost(new URL(selected.url).hostname);
+ const text=page.structuredText||(isSocial?(page.caption||page.description):[page.title,page.description,page.body].filter(Boolean).join('\n\n'));
  if(!text.trim()||(isSocial&&text.length<60))throw new SourceReadError('This post cannot be read. Paste its full caption or original recipe link.');
- return {sourceUrl:result.url,imageUrl:normalizeImageUrl(page.image,result.url),text:text.slice(0,10000),page};
+ return {sourceUrl:result.url,imageUrl:normalizeImageUrl(page.image,selected.url),text:text.slice(0,10000),page,originalRecipeUrl:selected!==result?selected.url:null};
 }

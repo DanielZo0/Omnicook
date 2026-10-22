@@ -15,7 +15,9 @@ export async function discoverOriginal(source:SourceDocument,dishName:string,bud
  const fetchPage=(value:string)=>budget.runSource(signal=>fetchSourcePage(value,signal,()=>budget.takeAdditionalRequest(),allowed));
  const asDocument=(r:Awaited<ReturnType<typeof fetchSourcePage>>):SourceDocument=>({sourceUrl:r.url,imageUrl:normalizeImageUrl(r.page.image,r.url),text:(r.page.structuredText||[r.page.title,r.page.description,r.page.body].filter(Boolean).join('\n\n')).slice(0,10000),page:r.page});
  try{
-  if(creator.pathname!=='/'&&creator.pathname!=='')return [asDocument(await fetchPage(creator.href))];
+  const explicit=[...new Map(urls.filter(u=>allowed(u)&&u.pathname!=='/'&&u.pathname!=='').map(u=>[u.href,u])).values()];
+  if(explicit.length>3)throw new Error('Too many plausible originals to select confidently.');
+  if(explicit.length){const docs:SourceDocument[]=[];for(const u of explicit){const doc=asDocument(await fetchPage(u.href));if(!docs.some(d=>d.sourceUrl===doc.sourceUrl))docs.push(doc);}return docs;}
   const homepage=await fetchPage(creator.href);let listing=homepage;
   const form=homepage.page.searchForms.find(f=>{try{return allowed(new URL(f.action,homepage.url));}catch{return false;}});
   if(form){const search=new URL(form.action,homepage.url);for(const [key,val] of Object.entries(form.hidden))search.searchParams.set(key,val);search.searchParams.set(form.queryName,dishName);listing=await fetchPage(search.href);}

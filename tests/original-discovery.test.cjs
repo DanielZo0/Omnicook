@@ -19,3 +19,9 @@ test('creator redirects cannot leave its origin or access private targets',async
  const found=await discoverOriginal({sourceUrl:'https://instagram.com/p/a/',text:'Ricetta Nascondini www.chef.example',page:null,imageUrl:null},'Nascondini',createImportBudget());
  assert.equal(found.length,0);assert.equal(calls,1);
 });
+test('all explicitly linked originals are evaluated rather than selecting first',async()=>{
+ mock.method(dns,'lookup',async()=>[{address:'93.184.215.14',family:4}]);const visited=[];
+ mock.method(global,'fetch',async u=>{visited.push(String(u));return new Response('<title>Nascondini</title><p>350 g farina. Impastate e infornate.</p>',{headers:{'Content-Type':'text/html'}})});
+ const found=await discoverOriginal({sourceUrl:null,imageUrl:null,page:null,text:'Ricette https://chef.example/a e https://chef.example/b'},'Nascondini',createImportBudget());
+ assert.equal(found.length,2);assert.equal(visited.length,2);
+});

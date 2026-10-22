@@ -1,6 +1,6 @@
 # Incomplete Social Recipe Imports Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans for native execution, or superpowers:subagent-driven-development if the user selects delegation. Steps use checkbox syntax for tracking. Implementation has not started.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans for native execution, or superpowers:subagent-driven-development if the user selects delegation. Steps use checkbox syntax for tracking. Implementation completed locally on 2026-10-22; browser acceptance remains blocked. See docs/testing/2026-10-22-social-imports.md.
 
 **Goal:** Recover matching full recipes from creator websites and retain honest, recoverable incomplete imports when instructions are unavailable.
 
@@ -55,11 +55,11 @@ assert.equal(importExtractionSchema.safeParse({...partial,completeness:"incomple
 assert.equal(importExtractionSchema.safeParse({...partial,completeness:"complete",missingFields:[]}).success, false);
 ```
 
-- [ ] Write tests asserting empty steps pass editable/import-incomplete validation but fail recipeSchema; blank title/ingredient-only noise fails import validation; complete status with no steps fails; unfinished source cannot be reported complete in provider fixtures; a complete Italian recipe passes with no English verbs.
-- [ ] Run `node --test tests/import-schema.test.cjs tests/provider.test.cjs`; observe the new failures.
-- [ ] Implement schemas, mode-specific prompts and validation repair. Thread mode through all providers and preserve it on repair. Keep refusal objects distinct from recoverable partial recipes. Normalize explicit refusal/empty output into a typed no-content result at the orchestrator boundary, never into a fabricated draft.
-- [ ] Re-run focused tests. Add per-provider request assertions for correct prompt mode; existing recipe callers retain their original prompt/validation. Verify body timeout and token-cutoff tests remain passing.
-- [ ] Commit `feat: extract source-backed incomplete recipe drafts`.
+- [x] Write tests asserting empty steps pass editable/import-incomplete validation but fail recipeSchema; blank title/ingredient-only noise fails import validation; complete status with no steps fails; unfinished source cannot be reported complete in provider fixtures; a complete Italian recipe passes with no English verbs.
+- [x] Run `node --test tests/import-schema.test.cjs tests/provider.test.cjs`; observe the new failures.
+- [x] Implement schemas, mode-specific prompts and validation repair. Thread mode through all providers and preserve it on repair. Keep refusal objects distinct from recoverable partial recipes. Normalize explicit refusal/empty output into a typed no-content result at the orchestrator boundary, never into a fabricated draft.
+- [x] Re-run focused tests. Add per-provider request assertions for correct prompt mode; existing recipe callers retain their original prompt/validation. Verify body timeout and token-cutoff tests remain passing.
+- [x] Commit `feat: extract source-backed incomplete recipe drafts`.
 
 ## Task 2: Bound creator-site discovery and match actual recipes
 
@@ -83,11 +83,11 @@ now += 1;
 await assert.rejects(budget.runSource(async () => "too late"));
 ```
 
-- [ ] Write fixture tests for reported-caption creator URL, homepage advertised search, absent search fallback, unsupported POST/search destination, malicious link/redirect, duplicate candidates, 350g=0.35kg, 1/2=0.5, decimal comma, unknown unit, count/weight refusal, 80% boundary, duplicate milk in separate sections, two versus three quantified matches and conflicting quantities/yield.
-- [ ] Add fake-clock/slow-body tests proving source/AI time is cumulative, repair receives remaining allowance, a sixth extra request never starts, and overall timeout aborts outstanding work. Initial social request redirects retain the existing five-redirect bound; additional discovery uses its shared five-request counter.
-- [ ] Run `node --test tests/import-budget.test.cjs tests/original-discovery.test.cjs tests/recipe-match.test.cjs tests/extraction.test.cjs`; confirm new failures.
-- [ ] Implement helpers through the existing pinned safe fetcher; no second unrestricted fetch path. Candidate deduplication uses canonical final URL. Retain all candidates until uniqueness is known; if the budget prevents evaluation of another viable candidate, remain incomplete rather than claiming uniqueness.
-- [ ] Re-run focused tests and commit `feat: discover and conservatively match creator recipes`.
+- [x] Write fixture tests for reported-caption creator URL, homepage advertised search, absent search fallback, unsupported POST/search destination, malicious link/redirect, duplicate candidates, 350g=0.35kg, 1/2=0.5, decimal comma, unknown unit, count/weight refusal, 80% boundary, duplicate milk in separate sections, two versus three quantified matches and conflicting quantities/yield.
+- [x] Add fake-clock/slow-body tests proving source/AI time is cumulative, repair receives remaining allowance, a sixth extra request never starts, and overall timeout aborts outstanding work. Initial social request redirects retain the existing five-redirect bound; additional discovery uses its shared five-request counter.
+- [x] Run `node --test tests/import-budget.test.cjs tests/original-discovery.test.cjs tests/recipe-match.test.cjs tests/extraction.test.cjs`; confirm new failures.
+- [x] Implement helpers through the existing pinned safe fetcher; no second unrestricted fetch path. Candidate deduplication uses canonical final URL. Retain all candidates until uniqueness is known; if the budget prevents evaluation of another viable candidate, remain incomplete rather than claiming uniqueness.
+- [x] Re-run focused tests and commit `feat: discover and conservatively match creator recipes`.
 
 ## Task 3: Orchestrate complete and incomplete imports
 
@@ -99,9 +99,9 @@ Automatic flow: read requested source, analyze in import mode within runAI, retu
 
 Manual original-link flow: client submits source plus captionDraft and originalRecipeUrl; validate every nested field, bound text and re-read supplied URL safely. Treat this endpoint as public untrusted input; captionDraft only governs matching, never network destinations. A mismatch returns an incomplete result with `replacementCandidate?:ImportCandidate`, where `ImportCandidate=Omit<ImportResult,'replacementCandidate'>` for explicit client confirmation. Do not automatically combine quantities from different recipes.
 
-- [ ] Add orchestrator tests using injected provider and mocked safe fetch: reported Instagram-to-creator fixture completes with both links and exact quantities; Italian caption completes directly; ingredients-only stays partial; unmatched/ambiguous/unreadable/budget-exhausted discovery retains original ingredients/known steps. Verify a supplied mismatch is only a replacement candidate and a failed manual URL leaves the existing draft available.
-- [ ] Run `node --test tests/import-flow.test.cjs`; confirm failure, implement route/orchestrator, then run all extraction/provider tests.
-- [ ] Verify route still exports maxDuration=60; no database writes, provider selection changes or logging of recipe text. Commit `feat: return recoverable partial social imports`.
+- [x] Add orchestrator tests using injected provider and mocked safe fetch: reported Instagram-to-creator fixture completes with both links and exact quantities; Italian caption completes directly; ingredients-only stays partial; unmatched/ambiguous/unreadable/budget-exhausted discovery retains original ingredients/known steps. Verify a supplied mismatch is only a replacement candidate and a failed manual URL leaves the existing draft available.
+- [x] Run `node --test tests/import-flow.test.cjs`; confirm failure, implement route/orchestrator, then run all extraction/provider tests.
+- [x] Verify route still exports maxDuration=60; no database writes, provider selection changes or logging of recipe text. Commit `feat: return recoverable partial social imports`.
 
 ## Task 4: Recover incomplete drafts safely across refresh and identity changes
 
@@ -120,9 +120,9 @@ assert.equal(readDraft(storage, {kind:"guest"}, now + 24*60*60*1000), null);
 
 The case constructs storage with a Map-backed getItem/setItem/removeItem and writes updatedAt=now, expiresAt=now+24 hours; use a validated partial import from Task 1.
 
-- [ ] Write in-memory tests for incomplete steps, expired drafts at exact boundaries, corrupt JSON/version/owner, B cannot read A, guest recovery is explicit, unavailable storage returns `{ok:false;reason:'unavailable'}`, legacy stored payload defaults, and clear only removes its owner's entry. readDraft returns null for invalid data, writeDraft never throws, clearDraft returns boolean.
-- [ ] Run `node --test tests/draft-storage.test.cjs`; confirm failure, implement helper plus accessible recovery/confirmation components. Offer Keep editing / Discard and Continue this recipe; do not auto-bind guest data to an account or auto-save.
-- [ ] Verify focused tests and commit `feat: retain account-scoped incomplete import drafts`.
+- [x] Write in-memory tests for incomplete steps, expired drafts at exact boundaries, corrupt JSON/version/owner, B cannot read A, guest recovery is explicit, unavailable storage returns `{ok:false;reason:'unavailable'}`, legacy stored payload defaults, and clear only removes its owner's entry. readDraft returns null for invalid data, writeDraft never throws, clearDraft returns boolean.
+- [x] Run `node --test tests/draft-storage.test.cjs`; confirm failure, implement helper plus accessible recovery/confirmation components. Offer Keep editing / Discard and Continue this recipe; do not auto-bind guest data to an account or auto-save.
+- [x] Verify focused tests and commit `feat: retain account-scoped incomplete import drafts`.
 
 ## Task 5: Review and complete partial recipes in the editor
 
@@ -139,11 +139,11 @@ assert.equal(shouldApplyImport(start,{...start,ownerKey:"user:b"}), false);
 assert.equal(shouldApplyImport(start,start), true);
 ```
 
-- [ ] Write tests asserting incomplete recipe Save disabled, manual steps enable Save only when all fields pass strict validation, empty instructions do not count, stale request/new edits/account switches preserve current state, mismatching candidate requires explicit replacement, and failure retains all edits/links. Run `node --test tests/import-review.test.cjs` and observe failure.
-- [ ] Implement helper and editor. Missing method copy is exactly "Ingredients found. Instructions are missing." Show both attribution links and original URL input; primary label "Save recipe". Keep candidate previews separate until accepted; matching auto-completion must not overwrite edits made since request start.
-- [ ] Wire autosave/recovery through Task 4 after session resolves. Unavailable storage visibly says the draft cannot survive closing the page; keep it in memory. Dirty navigation/new import asks before replacement; refresh/close flushes storage synchronously and uses beforeunload only when dirty. Recoverable drafts do not appear in vault/planner/shopping/cooking. Explicit discard and confirmed successful save clear storage; failed save never clears it. Guest binding clears stale recipe/collection IDs and requires explicit choice.
+- [x] Write tests asserting incomplete recipe Save disabled, manual steps enable Save only when all fields pass strict validation, empty instructions do not count, stale request/new edits/account switches preserve current state, mismatching candidate requires explicit replacement, and failure retains all edits/links. Run `node --test tests/import-review.test.cjs` and observe failure.
+- [x] Implement helper and editor. Missing method copy is exactly "Ingredients found. Instructions are missing." Show both attribution links and original URL input; primary label "Save recipe". Keep candidate previews separate until accepted; matching auto-completion must not overwrite edits made since request start.
+- [x] Wire autosave/recovery through Task 4 after session resolves. Unavailable storage visibly says the draft cannot survive closing the page; keep it in memory. Dirty navigation/new import asks before replacement; refresh/close flushes storage synchronously and uses beforeunload only when dirty. Recoverable drafts do not appear in vault/planner/shopping/cooking. Explicit discard and confirmed successful save clear storage; failed save never clears it. Guest binding clears stale recipe/collection IDs and requires explicit choice.
 - [ ] Browser-check 393px and 820px layouts: partial import, adding steps, original URL success/failure/mismatch, refresh recovery, discard confirmation, unavailable storage, delayed request versus edits, and account switches. Screen reader labels and focus restoration must work. Check complete/manual edits and existing failed-link reports still work.
-- [ ] Run focused tests and existing auth/import-report regressions; commit `feat: review and finish incomplete recipe imports`.
+- [x] Run focused tests and existing auth/import-report regressions; commit `feat: review and finish incomplete recipe imports`.
 
 ## Task 6: Persist dual source links and verify the full flow
 
@@ -151,16 +151,18 @@ assert.equal(shouldApplyImport(start,start), true);
 
 **Interfaces:** Add nullable recipes.originalRecipeUrl -> SQL original_recipe_url text. Add optional nullable originalRecipeUrl to client models (legacy default null), POST defaults null and PATCH omitted means retain, explicit null means clear. Extend createRecipeFromDraft with a fifth optional originalRecipeUrl argument default null; extend updateRecipe updates with this optional field. `sourceLinksSchema` validates nullable credential-free public HTTP(S) links with bounded length and rejects unsafe schemes; links render only after validation. Network fetching still requires public DNS pinning; saving an attribution does not itself fetch it. Show "Original post" and "Full recipe" when both links exist; retain existing source label for single-link legacy/manual recipes.
 
-- [ ] Write tests for both-link serialization and mobile adaptation, omitted PATCH retention versus explicit clearing, unsafe URL rejection, legacy null defaults and recipeSummaryColumns coverage. Run `node --test tests/source-links.test.cjs`; confirm failure.
-- [ ] Implement additive idempotent migration following existing script style, but require explicit target environment file and expected non-production branch/host confirmation for local checks. Never run it against the default .env.local implicitly. Add no destructive SQL/backfill. Apply only after independently verifying the integration branch via Neon tooling; use neon skill at execution time.
-- [ ] Implement API/model/UI changes; preserve owner WHERE clauses and uploaded-photo completion guards. Source photo copy uses the selected recipe image, not its social thumbnail; provenance-only PATCH does not trigger photo invalidation.
-- [ ] Run focused tests and isolated HTTP checks: create/read/edit retains both links; omitted/cleared link semantics; cross-account update fails; incomplete payload rejected; existing photos survive provenance edits. Clean temporary fixtures. Do not use current scripts/account-isolation.mjs blindly if its default target is production.
-- [ ] Run `npm test`, `npx tsc --noEmit`, `npx next build --webpack`. Success requires exit code 0 for all; document any real external provider/device limitations. Read installed Next build docs first; escalate sandbox filesystem errors only when needed.
-- [ ] Perform a read-only live import of the reported reel through the local route and verify match title, ingredient quantities, full method, both links and image. If creator markup no longer supports the advertised search, incomplete fallback is correct but record the real-reel acceptance as unresolved, not passed. No recipe save or production write is needed for this check.
-- [ ] Request whole-change review after checks, fix actionable defects, then commit `feat: preserve original recipe provenance`. Leave production migration, deployment and actual-device acceptance for a separately authorized release.
+- [x] Write tests for both-link serialization and mobile adaptation, omitted PATCH retention versus explicit clearing, unsafe URL rejection, legacy null defaults and recipeSummaryColumns coverage. Run `node --test tests/source-links.test.cjs`; confirm failure.
+- [x] Implement additive idempotent migration following existing script style, but require explicit target environment file and expected non-production branch/host confirmation for local checks. Never run it against the default .env.local implicitly. Add no destructive SQL/backfill. Apply only after independently verifying the integration branch via Neon tooling; use neon skill at execution time.
+- [x] Implement API/model/UI changes; preserve owner WHERE clauses and uploaded-photo completion guards. Source photo copy uses the selected recipe image, not its social thumbnail; provenance-only PATCH does not trigger photo invalidation.
+- [x] Run focused tests and isolated HTTP checks: create/read/edit retains both links; omitted/cleared link semantics; cross-account update fails; incomplete payload rejected; existing photos survive provenance edits. Clean temporary fixtures. Do not use current scripts/account-isolation.mjs blindly if its default target is production.
+- [x] Run `npm test`, `npx tsc --noEmit`, `npx next build --webpack`. Success requires exit code 0 for all; document any real external provider/device limitations. Read installed Next build docs first; escalate sandbox filesystem errors only when needed.
+- [x] Perform a read-only live import of the reported reel through the local route and verify match title, ingredient quantities, full method, both links and image. If creator markup no longer supports the advertised search, incomplete fallback is correct but record the real-reel acceptance as unresolved, not passed. No recipe save or production write is needed for this check.
+- [x] Request whole-change review after checks, fix actionable defects, then commit `feat: preserve original recipe provenance`. Leave production migration, deployment and actual-device acceptance for a separately authorized release.
 
 ## Self-review and handoff
 
 All design sections map to Tasks 1-6; the five Review Focus cases have explicit tests above. The common import draft and provider option names are shared across tasks. Budget tests cover intermediate partial-analysis and candidate calls, not just the last provider request. Existing UX plan remains separate with only its draft helper interface extended here.
 
-Recommended execution: native in this chat, because the six tasks share import contracts, cumulative budgets and editor state. One whole-change review follows focused tests and build. No implementation or migration has run during planning.
+Recommended execution: native in this chat, because the six tasks share import contracts, cumulative budgets and editor state. One whole-change review follows focused tests and build. Implementation and integration-branch migration now verified locally; production remains unchanged. The original recommendation above records the planning handoff, which the user approved for native execution.
+
+Execution note: all code and automated checks implemented; the browser checklist is explicitly pending. URL input persistence is a deferred minor. Task 6 integration uses actual HTTP handlers with isolated SQL and a stubbed authenticated identity to avoid production authentication writes. Final production build result is recorded in the session validation log.

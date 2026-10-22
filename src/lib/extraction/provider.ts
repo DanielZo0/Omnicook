@@ -20,8 +20,10 @@ export function withValidationRepair(provider: ExtractionProvider): ExtractionPr
     const parsed = (options?.mode === 'import' ? importExtractionSchema : recipeSchema).safeParse(raw);
     const refused = raw && typeof raw === 'object' && 'error' in raw;
     const remaining = deadline - Date.now();
-    if (parsed.success || refused || remaining < 5000) return raw;
-    const validationFeedback = parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    const measured = new Set([...text.matchAll(/\b\d+(?:[.,/]\d+)?\s*(?:g|kg|ml|cups?|tbsp|tsp)\b[^\n]*/gi)].map(m=>m[0].trim().toLowerCase()));
+    const repairImportRefusal=refused&&options?.mode==='import'&&measured.size>=3;
+    if (parsed.success || (refused&&!repairImportRefusal) || remaining < 5000) return raw;
+    const validationFeedback = repairImportRefusal ? 'The source includes multiple measured ingredients. Missing instructions alone are not a reason to refuse in import mode. Preserve those source-backed ingredients with completeness=incomplete, missingFields=[instructions], steps=[] when no method is present. Never invent a method. If ingredients genuinely cannot be extracted, keep the refusal.' : parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ');
     return provider.extract(sourceUrl, text, {...options, timeoutMs: remaining, validationFeedback});
   }};
 }

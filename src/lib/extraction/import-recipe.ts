@@ -20,7 +20,7 @@ export async function importRecipe(input:{source:string;captionDraft?:ImportExtr
   const {completeness,missingFields,...draft}=value;
   return {ok:true,status:completeness,draft,missingFields,sourceUrl:source.sourceUrl,originalRecipeUrl,imageUrl:doc.imageUrl};
  };
- const partial=result(caption,source,null);
+ const partial=result(caption,source,source.originalRecipeUrl??null);
  if(caption.completeness==='complete'&&!input.originalRecipeUrl)return partial;
  try{
   const docs=input.originalRecipeUrl?[await readSource(input.originalRecipeUrl,budget)]:await discoverOriginal(source,caption.title,budget);

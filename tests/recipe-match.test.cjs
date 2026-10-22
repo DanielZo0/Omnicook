@@ -23,3 +23,11 @@ test('count/weight cannot match and unknown quantities count against coverage',(
  assert.equal(matchRecipe(x,recipe([['farina','0.5','cup'],...base.slice(1)])).matches,true);
  assert.equal(matchRecipe(x,recipe([['farina','0.5','g'],...base.slice(1)])).matches,false);
 });
+test('same ingredient in different recipe sections cannot swap quantities',()=>{
+ const a=recipe([['farina','350','g'],['latte','80','g'],['latte','140','g']]);a.ingredients[1].notes='dough';a.ingredients[2].notes='filling';
+ const b=recipe([['farina','350','g'],['latte','140','g'],['latte','80','g']]);b.ingredients[1].notes='dough';b.ingredients[2].notes='filling';
+ assert.equal(matchRecipe(a,b).matches,false);
+});
+test('close but different decimal quantities are not equal',()=>{
+ const b=recipe([['farina','350.0000000001','g'],...base.slice(1)]);assert.equal(matchRecipe(recipe(base),b).matches,false);
+});
