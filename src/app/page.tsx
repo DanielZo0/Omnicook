@@ -35,7 +35,7 @@ type ReviewState={draft:EditableRecipeDraft;sourceUrl:string|null;imageUrl:strin
 type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
 type Layout = 'grid' | 'feed' | 'editorial';
 
-const INK = '#1b2b43', GREEN = '#3158cf', LIME = '#e8efa6', CORAL = '#3158cf', PAPER = '#f8fafc', CARD = '#ffffff', LINE = '#e2e7ef', MUTED = '#647187';
+const INK = '#28563d', GREEN = '#28563d', LIME = '#f9d94e', CORAL = '#28563d', PAPER = '#fffdf2', CARD = '#fffef8', LINE = '#e2e5cd', MUTED = '#526447';
 const SCROLL = 'overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain';
 const TOP_SAFE = 'calc(env(safe-area-inset-top,0px) + 20px)';
 const BOTTOM_SAFE = '28px';
@@ -540,14 +540,14 @@ export default function Home() {
       <button className={`sidebar-profile ${screen === 'profile' ? 'is-active' : ''}`} onClick={() => go('profile')}><span className="avatar"><KitchenIcon name="user" size={18} /></span><span><b>My kitchen</b><small>{signedIn ? 'Account & collections' : 'Explore Omnicook'}</small></span><KitchenIcon name="chevron" size={15} /></button>
     </aside>}
     <div className="app-content">
-    {screen === 'onboarding' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:${TOP_SAFE} 26px calc(env(safe-area-inset-bottom,0px) + 32px);box-sizing:border-box;background:${GREEN};color:#ffffff`)}>
-      <div style={s("font-family:'Lora',serif;font-weight:700;font-size:30px")}>omni<i style={s(`color:${LIME}`)}>cook</i></div>
+    {screen === 'onboarding' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:${TOP_SAFE} 26px calc(env(safe-area-inset-bottom,0px) + 32px);box-sizing:border-box;background:${GREEN};color:#fffef8`)}>
+      <div style={s("font-family:var(--display);font-weight:700;font-size:30px")}>omni<i style={s(`color:${LIME}`)}>cook</i></div>
       <div style={s('flex:1;display:flex;flex-direction:column;justify-content:center;gap:26px')}>
-        <div style={s("font-family:'Lora',serif;font-weight:700;font-size:38px;line-height:1.08")}>Every recipe you saved, in one place.</div>
+        <div style={s("font-family:var(--display);font-weight:700;font-size:38px;line-height:1.08")}>Every recipe you saved, in one place.</div>
         <div style={s('font-size:15px;line-height:1.55;color:#d5e3d1;max-width:290px')}>Share a post from Instagram, TikTok or YouTube. Omnicook reads it and files a tidy recipe card in your vault.</div>
         <div style={s('display:flex;flex-direction:column;gap:10px;margin-top:6px')}>
           {[['◉', 'Paste a link, or share it in', 'Works from any social app'], ['✦', 'AI pulls out the recipe', 'Ingredients, steps, timings'], ['◈', 'Search it forever', 'By creator, ingredient or mood']].map(([glyph, title, sub]) => (
-            <div key={title} style={s('display:flex;align-items:center;gap:13px;padding:14px 15px;border-radius:14px;background:#ffffff14;border:1px solid #ffffff2b')}>
+            <div key={title} style={s('display:flex;align-items:center;gap:13px;padding:14px 15px;border-radius:14px;background:#fffef814;border:1px solid #fffef82b')}>
               <span style={s(`display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:${LIME};color:${GREEN};font-size:15px;font-weight:700`)}>{glyph}</span>
               <div style={s('display:flex;flex-direction:column;gap:2px')}><b style={s('font-size:13.5px')}>{title}</b><span style={s('font-size:12px;color:#c9dcc5')}>{sub}</span></div>
             </div>
@@ -560,7 +560,7 @@ export default function Home() {
 
     {screen === 'vault' && <div className="vault-screen app-scroll">
       <header className="cookbook-header">
-        <div><div className="mobile-brand"><KitchenIcon name="book" size={20} /> omnicook<span>.</span></div><h1>Your cookbook</h1><p>{loadingVault ? 'Gathering your recipes…' : `${recipes.length} recipes, ready when you are.`}</p></div>
+        <div><div className="mobile-brand"><KitchenIcon name="book" size={20} /> omnicook<span>.</span></div><h1>Your cookbook<span className="kitchen-flower" aria-hidden="true">✿</span></h1><p>{loadingVault ? 'Gathering your recipes…' : `${recipes.length} recipes, ready when you are.`}</p></div>
         <button className="avatar mobile-account" aria-label="My kitchen" onClick={() => go('profile')}><KitchenIcon name="user" size={21} /></button>
         <button className="outline-button header-add" onClick={() => go('import')}><KitchenIcon name="plus" size={18} /> Add a recipe</button>
       </header>
@@ -595,7 +595,7 @@ export default function Home() {
       </div> : <div style={s('display:flex;gap:8px;flex-wrap:wrap;padding:16px 18px 0')}>
         {FILTERS.map((f) => { const p = pill(filter === f); return <button key={f} onClick={() => pickFilter(f)} style={s(`border:1px solid ${LINE};border-radius:20px;padding:8px 13px;background:${p.bg};color:${p.fg};font-size:12px;font-weight:700`)}>{f}</button>; })}
       </div>}
-      <div style={s('padding:22px 18px 10px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#647187')}>{filteredSearch.length} recipes</div>
+      <div style={s('padding:22px 18px 10px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#526447')}>{filteredSearch.length} recipes</div>
       <div style={s('display:flex;flex-direction:column;gap:11px;padding:0 18px')}>
         {filteredSearch.map((r) => <button key={r.id} onClick={() => openRecipe(r.id)} style={s(`display:flex;align-items:center;gap:13px;width:100%;padding:10px;border:1px solid ${LINE};border-radius:15px;background:${CARD};text-align:left`)}>
           {r.img && <RecipeImage src={r.img} alt={r.t} style={s('width:58px;height:58px;border-radius:11px;object-fit:cover;flex:none')} />}
@@ -624,18 +624,18 @@ export default function Home() {
       <p className="import-footnote">You’ll review the ingredients and method before saving.</p>
     </div>}
 
-    {screen === 'extracting' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:${TOP_SAFE} 24px calc(env(safe-area-inset-bottom,0px) + 30px);box-sizing:border-box;background:${GREEN};color:#ffffff`)}>
+    {screen === 'extracting' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:${TOP_SAFE} 24px calc(env(safe-area-inset-bottom,0px) + 30px);box-sizing:border-box;background:${GREEN};color:#fffef8`)}>
       <div style={s('display:flex;align-items:center;gap:10px')}>
-        <span style={s(`display:inline-block;width:15px;height:15px;border:2px solid #ffffff40;border-top-color:${LIME};border-radius:50%;animation:omspin .8s linear infinite`)} />
+        <span style={s(`display:inline-block;width:15px;height:15px;border:2px solid #fffef840;border-top-color:${LIME};border-radius:50%;animation:omspin .8s linear infinite`)} />
         <span style={s(`font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${LIME}`)}>Extracting</span>
       </div>
-      <div style={s("font-family:'Lora',serif;font-weight:700;font-size:28px;line-height:1.15;margin:14px 0 30px")}>Reading your recipe…</div>
+      <div style={s("font-family:var(--display);font-weight:700;font-size:28px;line-height:1.15;margin:14px 0 30px")}>Reading your recipe…</div>
       <div style={s('display:flex;flex-direction:column;gap:3px')}>
         {EXTRACT_STEPS.map((label, i) => {
           const done = i < extractIdx, now = i === extractIdx;
-          const bg = done ? LIME : now ? '#ffffff2e' : '#ffffff14';
-          const fg = done ? GREEN : '#ffffff';
-          const text = done || now ? '#ffffff' : '#8fab8a';
+          const bg = done ? LIME : now ? '#fffef82e' : '#fffef814';
+          const fg = done ? GREEN : '#fffef8';
+          const text = done || now ? '#fffef8' : '#8fab8a';
           return <div key={label} style={s('display:flex;align-items:center;gap:12px;padding:12px 2px')}>
             <span style={s(`display:grid;place-items:center;width:26px;height:26px;border-radius:50%;flex:none;font-size:12px;font-weight:700;background:${bg};color:${fg}`)}>{done ? '✓' : i + 1}</span>
             <span style={s(`font-size:14px;font-weight:600;color:${text}`)}>{label}</span>
@@ -643,8 +643,8 @@ export default function Home() {
         })}
       </div>
       <div style={s('flex:1')} />
-      <div style={s('height:4px;border-radius:99px;background:#ffffff26;overflow:hidden')}><div style={s(`height:100%;background:${LIME};border-radius:99px;transition:width .5s ease;width:${Math.round((extractIdx / (EXTRACT_STEPS.length - 1)) * 100)}%`)} /></div>
-      <button onClick={() => go('vault')} style={s('margin-top:16px;width:100%;padding:13px;border:1px solid #ffffff3d;border-radius:14px;background:transparent;color:#d5e3d1;font-size:13px;font-weight:600')}>Keep browsing while this finishes</button>
+      <div style={s('height:4px;border-radius:99px;background:#fffef826;overflow:hidden')}><div style={s(`height:100%;background:${LIME};border-radius:99px;transition:width .5s ease;width:${Math.round((extractIdx / (EXTRACT_STEPS.length - 1)) * 100)}%`)} /></div>
+      <button onClick={() => go('vault')} style={s('margin-top:16px;width:100%;padding:13px;border:1px solid #fffef83d;border-radius:14px;background:transparent;color:#d5e3d1;font-size:13px;font-weight:600')}>Keep browsing while this finishes</button>
     </div>}
 
     {(screen === 'review' || screen === 'edit') && reviewDraft && reviewOwner.current===ownerKey && <div className="recipe-editor" style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
@@ -658,19 +658,19 @@ export default function Home() {
           {safeSourceLink(reviewDraft.sourceUrl)&&<p style={{margin:'12px 20px'}}><a href={safeSourceLink(reviewDraft.sourceUrl)!} target="_blank" rel="noopener noreferrer">{reviewDraft.originalRecipeUrl?'Original post':'Source'}</a>{safeSourceLink(reviewDraft.originalRecipeUrl)&&<> · <a href={safeSourceLink(reviewDraft.originalRecipeUrl)!} target="_blank" rel="noopener noreferrer">Full recipe</a></>}</p>}
         </RecipeEditor>
         <div style={s('padding:16px 20px 0')}>
-          <div style={s('font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#647187')}>{editRecipeId ? 'Edit recipe' : 'Check before saving'}</div>
+          <div style={s('font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#526447')}>{editRecipeId ? 'Edit recipe' : 'Check before saving'}</div>
           <RecipeImage src={reviewDraft.imageUrl ?? undefined} alt={reviewDraft.draft.title} style={s('width:100%;height:180px;object-fit:cover;border-radius:14px;margin:12px 0')} />
-          <input aria-label="Recipe title" value={reviewDraft.draft.title} onChange={(e) => updateDraft('title', e.target.value)} placeholder="Recipe title" style={s("width:100%;margin-top:6px;padding:0;border:0;outline:0;background:transparent;font-family:'Lora',serif;font-weight:700;font-size:27px;line-height:1.15;box-sizing:border-box")} />
+          <input aria-label="Recipe title" value={reviewDraft.draft.title} onChange={(e) => updateDraft('title', e.target.value)} placeholder="Recipe title" style={s("width:100%;margin-top:6px;padding:0;border:0;outline:0;background:transparent;font-family:var(--display);font-weight:700;font-size:27px;line-height:1.15;box-sizing:border-box")} />
           <div style={s('display:flex;gap:8px;flex-wrap:wrap;margin-top:12px')}>
             {(['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Other'] as const).map((cat) => { const on = reviewDraft.draft.category === cat; return <button key={cat} onClick={() => updateDraft('category', cat)} style={s(`padding:7px 11px;border:1px solid ${on ? GREEN : LINE};border-radius:20px;background:${on ? GREEN : CARD};color:${on ? '#fff' : INK};font-size:11.5px;font-weight:600`)}>{cat}</button>; })}
           </div>
-          <label style={s('display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#647187')}>Servings
+          <label style={s('display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#526447')}>Servings
             <input type="number" min={1} value={reviewDraft.draft.servings ?? ''} onChange={(e) => updateDraft('servings', e.target.value ? Number(e.target.value) : null)} style={s(`width:72px;padding:9px 10px;border:1px solid ${LINE};border-radius:8px;background:${CARD};font-size:16px`)} />
           </label>
         </div>
         <div style={s(`margin:20px 20px 0;padding:14px 15px;border:1px solid ${LINE};border-radius:16px;background:${CARD}`)}>
           <div style={s('display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px')}>
-            <b style={s("font-family:'Lora',serif;font-size:16px")}>Ingredients</b>
+            <b style={s("font-family:var(--display);font-size:16px")}>Ingredients</b>
             <span style={s(`font-size:11px;color:${MUTED}`)}>{reviewDraft.draft.ingredients.length} found</span>
           </div>
           {reviewDraft.draft.ingredients.map((ingredient, index) => <div key={index} style={s(`padding:9px 0;border-bottom:1px solid ${LINE}`)}>
@@ -687,7 +687,7 @@ export default function Home() {
           <button onClick={addIngredient} style={s(`margin-top:10px;border:0;background:transparent;color:${GREEN};font-size:12.5px;font-weight:700`)}>+ Add an ingredient</button>
         </div>
         <div style={s(`margin:14px 20px 0;padding:14px 15px;border:1px solid ${LINE};border-radius:16px;background:${CARD}`)}>
-          <b style={s("font-family:'Lora',serif;font-size:16px")}>Method</b>
+          <b style={s("font-family:var(--display);font-size:16px")}>Method</b>
           {reviewDraft.draft.steps.map((step, index) => <div key={index} style={s('display:flex;gap:9px;align-items:flex-start;padding:8px 0')}>
             <b style={s(`color:${MUTED};font-size:13px;margin-top:9px`)}>{index + 1}.</b>
             <textarea aria-label={`Method step ${index+1}`} value={step.instruction} onChange={(e) => updateStep(index, e.target.value)} style={s(`flex:1;padding:10px;border:1px solid ${LINE};border-radius:8px;font-size:16px;line-height:1.45;min-height:52px;font-family:inherit;box-sizing:border-box`)} />
@@ -695,7 +695,7 @@ export default function Home() {
           </div>)}
           <button onClick={addStep} style={s(`margin-top:6px;border:0;background:transparent;color:${GREEN};font-size:12.5px;font-weight:700`)}>+ Add a step</button>
         </div>
-        {signedIn && <div style={s('margin:14px 20px 0;padding:14px 15px;border-radius:16px;background:#edf1fb')}>
+        {signedIn && <div style={s('margin:14px 20px 0;padding:14px 15px;border-radius:16px;background:#f0f2d9')}>
           <b style={s('font-size:12.5px')}>Save to a collection</b>
           <div style={s('display:flex;gap:8px;flex-wrap:wrap;margin-top:10px')}>
             {collectionsState.map((c) => { const on = selectedCollectionId === c.id; return <button key={c.id} onClick={() => setSelectedCollectionId(on ? null : c.id)} style={s(`padding:8px 12px;border-radius:20px;background:${on ? GREEN : 'transparent'};border:1px solid ${on ? GREEN : '#cfd8c8'};color:${on ? '#fff' : '#3f5240'};font-size:11.5px;font-weight:700`)}>{c.name}{on ? ' ✓' : ''}</button>; })}
@@ -746,7 +746,7 @@ export default function Home() {
         </div>
         <div className="recipe-columns"><section className="ingredient-panel" style={s('padding:20px 20px 0')}>
           <div style={s('display:flex;align-items:center;justify-content:space-between')}>
-            <h3 style={s("font-family:'Lora',serif;font-size:19px;margin:0")}>Ingredients</h3>
+            <h3 style={s("font-family:var(--display);font-size:19px;margin:0")}>Ingredients</h3>
             <div style={s(`display:flex;gap:3px;padding:3px;border:1px solid ${LINE};border-radius:11px;background:${CARD}`)}>
               {[1, 2, 3].map((v) => { const sg = seg(servings === v); return <button key={v} aria-pressed={servings === v} aria-label={`${v} times the recipe`} onClick={() => setServings(v)} style={s(`padding:6px 11px;border:0;border-radius:8px;background:${sg.bg};color:${sg.fg};font-size:12px;font-weight:700`)}>{v}×</button>; })}
             </div>
@@ -759,18 +759,18 @@ export default function Home() {
           </div>
         </section>
         <section className="method-panel" style={s('padding:22px 20px 0')}>
-          <h3 style={s("font-family:'Lora',serif;font-size:19px;margin:0 0 6px")}>Method</h3>
+          <h3 style={s("font-family:var(--display);font-size:19px;margin:0 0 6px")}>Method</h3>
           {active.m.map((text, i) => <div key={i} style={s('display:flex;gap:11px;padding:10px 0;font-size:13.5px;line-height:1.5')}>
             <b style={s(`color:${MUTED}`)}>{i + 1}.</b><span>{text}</span>
           </div>)}
         </section></div>
-        <div className="sous-chef-panel" style={s('margin:18px 20px 24px;padding:16px;border-radius:16px;background:#edf1fb')}>
+        <div className="sous-chef-panel" style={s('margin:18px 20px 24px;padding:16px;border-radius:16px;background:#f0f2d9')}>
           <b style={s('font-size:13px')}>✦ Ask your AI sous-chef</b>
           <div style={s('display:flex;gap:8px;margin-top:11px')}>
-            <input value={chefQuestion} onChange={(e) => setChefQuestion(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && askChef()} placeholder="What can I substitute for cream?" style={s('flex:1;min-width:0;padding:11px;border:0;border-radius:10px;background:#fff;font-size:16px;color:#647187')} />
+            <input value={chefQuestion} onChange={(e) => setChefQuestion(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && askChef()} placeholder="What can I substitute for cream?" style={s('flex:1;min-width:0;padding:11px;border:0;border-radius:10px;background:#fff;font-size:16px;color:#526447')} />
             <button onClick={askChef} disabled={chefLoading} style={s(`padding:0 15px;border:0;border-radius:10px;background:${GREEN};color:#fff;font-size:13px;font-weight:700`)}>{chefLoading ? '…' : 'Ask'}</button>
           </div>
-          {chefReply && <p style={s('font-size:12.5px;line-height:1.5;color:#405775;margin:11px 0 0')}>{chefReply}</p>}
+          {chefReply && <p style={s('font-size:12.5px;line-height:1.5;color:#3e5b3d;margin:11px 0 0')}>{chefReply}</p>}
         </div>
       </div>
         <div className="detail-actions" style={s('padding:8px 20px calc(env(safe-area-inset-bottom,0px) + 24px);display:flex;gap:10px')}>
@@ -779,28 +779,28 @@ export default function Home() {
         </div>
     </div>}
 
-    {screen === 'cook' && active && <div className="cooking-screen" style={s('flex:1;display:flex;flex-direction:column;min-height:0;background:#ffffff')}>
+    {screen === 'cook' && active && <div className="cooking-screen" style={s('flex:1;display:flex;flex-direction:column;min-height:0;background:#fffef8')}>
       <div style={s('padding:calc(env(safe-area-inset-top,0px) + 20px) 22px 0')}>
         <div style={s('display:flex;align-items:center;justify-content:space-between')}>
           <button aria-label="Close cooking mode" onClick={() => go('detail')} style={s(`width:44px;height:44px;border:1px solid ${LINE};border-radius:50%;background:${PAPER};font-size:16px`)}>✕</button>
-          <span style={s('padding:7px 12px;border-radius:20px;background:#edf1fb;color:#3158cf;font-size:11.5px;font-weight:700')}>Cooking mode</span>
+          <span style={s('padding:7px 12px;border-radius:20px;background:#f0f2d9;color:#28563d;font-size:11.5px;font-weight:700')}>Cooking mode</span>
         </div>
         <div style={s('display:flex;gap:5px;margin-top:20px')}>
           {active.m.map((_, i) => <div key={i} style={s(`flex:1;height:4px;border-radius:99px;background:${i <= cookStep ? GREEN : LINE}`)} />)}
         </div>
-        <div style={s('margin-top:14px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#647187')}>Step {cookStep + 1} of {active.m.length} · {active.t}</div>
+        <div style={s('margin-top:14px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#526447')}>Step {cookStep + 1} of {active.m.length} · {active.t}</div>
       </div>
       <div className="cooking-body" style={s(`flex:1;${SCROLL};padding:14px 22px 0`)}>
-        <div style={s("font-family:'Lora',serif;font-weight:700;font-size:30px;line-height:1.2")}>{active.m[cookStep]}</div>
+        <div style={s("font-family:var(--display);font-weight:700;font-size:30px;line-height:1.2")}>{active.m[cookStep]}</div>
         <div className="cooking-ingredients" style={s(`margin-top:22px;padding:15px;border-radius:15px;background:${PAPER};border:1px solid ${LINE}`)}>
-          <div style={s('font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#647187;margin-bottom:8px')}>Ingredients at hand</div>
+          <div style={s('font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#526447;margin-bottom:8px')}>Ingredients at hand</div>
           {active.a.map((ingredient) => <div key={ingredient.name} style={s('display:flex;gap:9px;padding:5px 0;font-size:13.5px')}><b style={s(`width:62px;color:${CORAL}`)}>{scaleAmount(ingredient.amt, servings)}</b><span>{ingredient.name}</span></div>)}
         </div>
         <div className="cooking-helper" style={s('display:flex;gap:10px;margin-top:14px')}>
           <input aria-label="Ask a cooking question" value={chefQuestion} onChange={e => setChefQuestion(e.target.value)} onKeyDown={e => e.key === 'Enter' && askChef()} placeholder="Ask a cooking question…" />
           <button onClick={askChef} disabled={chefLoading} style={s(`flex:1;padding:13px;border:1px solid ${LINE};border-radius:14px;background:${PAPER};font-size:13px;font-weight:700`)}>{chefLoading ? 'Asking…' : '✦ Ask sous-chef'}</button>
         </div>
-        {chefReply && <p style={s('margin:12px 0 0;padding:13px;border-radius:13px;background:#edf1fb;font-size:12.5px;line-height:1.5;color:#405775')}>{chefReply}</p>}
+        {chefReply && <p style={s('margin:12px 0 0;padding:13px;border-radius:13px;background:#f0f2d9;font-size:12.5px;line-height:1.5;color:#3e5b3d')}>{chefReply}</p>}
       </div>
       <div style={s('padding:12px 22px calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;gap:10px')}>
         <button aria-label="Previous step" disabled={cookStep === 0} onClick={() => setCookStep((v) => Math.max(0, v - 1))} style={s(`padding:16px 18px;border:1px solid ${LINE};border-radius:14px;background:${PAPER};font-size:14px;font-weight:700`)}>‹</button>
@@ -815,12 +815,12 @@ export default function Home() {
           <span style={s(`width:34px;flex:none;font-size:11.5px;font-weight:700;color:${MUTED}`)}>{d.short}</span>
           {rec?.img && <RecipeImage src={rec.img} alt={rec.t} style={s('width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none')} />}
           <span style={s(`flex:1;font-size:13.5px;font-weight:600;line-height:1.3;color:${rec ? INK : '#9aa398'}`)}>{rec ? rec.t : 'Nothing planned yet'}</span>
-          <button aria-label={`${rec ? 'Change' : 'Add'} recipe for ${d.day}`} onClick={() => cycleDay(d.day, d.iso)} style={s('flex:none;border:0;border-radius:9px;padding:8px 11px;background:#edf1fb;color:#3158cf;font-size:11.5px;font-weight:700')}>{rec ? 'Change' : 'Add'}</button>
+          <button aria-label={`${rec ? 'Change' : 'Add'} recipe for ${d.day}`} onClick={() => cycleDay(d.day, d.iso)} style={s('flex:none;border:0;border-radius:9px;padding:8px 11px;background:#f0f2d9;color:#28563d;font-size:11.5px;font-weight:700')}>{rec ? 'Change' : 'Add'}</button>
         </div>; })}
       </div>
-      <button onClick={() => go('grocery')} style={s('display:flex;align-items:center;justify-content:space-between;width:calc(100% - 40px);margin:14px 20px 0;padding:17px;border:0;border-radius:17px;background:#f1f4dd;text-align:left')}>
+      <button onClick={() => go('grocery')} style={s('display:flex;align-items:center;justify-content:space-between;width:calc(100% - 40px);margin:14px 20px 0;padding:17px;border:0;border-radius:17px;background:#f0f2d9;text-align:left')}>
         <span style={s('display:flex;flex-direction:column;gap:3px')}>
-          <b style={s("font-family:'Lora',serif;font-size:17px")}>Shopping list</b>
+          <b style={s("font-family:var(--display);font-size:17px")}>Shopping list</b>
           <span style={s(`font-size:12px;color:${MUTED}`)}>{groceryNames.length} items from {plannedCount} planned recipes</span>
         </span>
         <span style={s('font-size:15px;color:#8a6a1f')}>›</span>
@@ -834,7 +834,7 @@ export default function Home() {
       </div>
       <header className="utility-heading planner-heading"><h1>Your shopping list</h1><p>{groceryNames.length} ingredients from {plannedCount} planned recipes.</p></header>
       {grocerySections.length === 0 && <p style={s(`padding:16px 20px 0;font-size:12.5px;color:${MUTED}`)}>Plan a few dinners to build your list.</p>}
-      {grocerySections.map(([name, items]) => <div key={name} style={s('margin:16px 20px 0;padding:16px;border-radius:17px;background:#eff3f8')}>
+      {grocerySections.map(([name, items]) => <div key={name} style={s('margin:16px 20px 0;padding:16px;border-radius:17px;background:#f0f2d9')}>
         <div style={s(`font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${CORAL};margin-bottom:6px`)}>{name}</div>
         {items.map((item) => { const on = !!ticked[item]; return <button key={item} aria-pressed={!!ticked[item]} onClick={() => toggleTick(item)} style={s('display:flex;align-items:center;gap:11px;width:100%;padding:9px 0;border:0;background:transparent;text-align:left')}>
           <span style={s(`display:grid;place-items:center;width:19px;height:19px;flex:none;border:1.5px solid #cfc7ae;border-radius:5px;font-size:11px;color:#fff;background:${on ? GREEN : 'transparent'}`)}>{on ? '✓' : ''}</span>
@@ -846,25 +846,25 @@ export default function Home() {
 
     {screen === 'profile' && <div className="utility-screen profile-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE}`)}>
       {!signedIn ? <div style={s('padding:20px')}>
-        <div style={s("font-family:'Lora',serif;font-weight:700;font-size:24px")}>You&apos;re browsing a preview</div>
+        <div style={s("font-family:var(--display);font-weight:700;font-size:24px")}>You&apos;re browsing a preview</div>
         <p style={s(`font-size:13px;line-height:1.6;color:${MUTED};margin-top:8px`)}>{configured ? 'Sign in to see your own stats, collections and settings.' : 'Sign-in isn’t configured for this deployment yet.'}</p>
         {configured && <a href="/login" style={s(`display:inline-block;margin-top:14px;padding:13px 20px;border-radius:14px;background:${GREEN};color:#fff;font-size:13.5px;font-weight:700;text-decoration:none`)}>Sign in</a>}
       </div> : <>
         <div style={s('display:flex;align-items:center;gap:14px;padding:0 20px')}>
           <span style={s(`display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:${CORAL};color:#fff;font-weight:700;font-size:19px`)}>{(user?.email ?? '?').slice(0, 2).toUpperCase()}</span>
           <span style={s('display:flex;flex-direction:column;gap:3px')}>
-            <b style={s("font-family:'Lora',serif;font-size:21px")}>{user?.email}</b>
+            <b style={s("font-family:var(--display);font-size:21px")}>{user?.email}</b>
             <span style={s(`font-size:12px;color:${MUTED}`)}>{collections.length} collections</span>
           </span>
         </div>
         <div style={s('display:flex;gap:10px;padding:18px 20px 0')}>
           {[{ v: recipes.length, k: 'recipes saved' }, { v: collections.length, k: 'collections' }, { v: mealPlan.length, k: 'meals planned' }].map((stat) => <div key={stat.k} style={s(`flex:1;padding:14px 12px;border:1px solid ${LINE};border-radius:15px;background:${CARD}`)}>
-            <div style={s("font-family:'Lora',serif;font-weight:700;font-size:24px")}>{stat.v}</div>
+            <div style={s("font-family:var(--display);font-weight:700;font-size:24px")}>{stat.v}</div>
             <div style={s(`font-size:11px;color:${MUTED}`)}>{stat.k}</div>
           </div>)}
         </div>
         {collections.length > 0 && <>
-          <div style={s("padding:26px 20px 10px;font-family:'Lora',serif;font-size:18px;font-weight:700")}>Collections</div>
+          <div style={s("padding:26px 20px 10px;font-family:var(--display);font-size:18px;font-weight:700")}>Collections</div>
           <div style={s(`display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;padding:0 20px`)}>
             {collections.map((c) => <button key={c.id} onClick={() => openCollection(c.id)} style={s(`display:flex;flex-direction:column;justify-content:space-between;gap:26px;padding:14px;border:1px solid ${LINE};border-radius:16px;background:${c.bg};text-align:left`)}>
               <span style={s('font-size:18px')}>{c.glyph}</span>
