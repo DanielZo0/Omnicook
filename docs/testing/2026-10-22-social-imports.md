@@ -24,3 +24,9 @@ The browser bridge repeatedly timed out before local navigation, leaving blank t
 Deferred minor: the URL currently typed in the original-recipe lookup field is component-local and is not restored on refresh. Recipe edits, known source links and the recoverable draft are stored.
 
 Production needs the additive provenance column before this code is released. The integration-only migration script deliberately refuses implicit/default targets; a production rollout requires a separately authorized, explicit migration/deployment procedure.
+
+## Release preparation — 2026-10-22
+
+Deployment authorized by the user. The nullable provenance column was applied to the independently verified production main branch after creating no-compute recovery branch br-mute-math-b44cb4a8. Before/after business-data hashes match: 75 recipes, 785 ingredients, 587 steps, five collections, two meal plans, four seed markers and 27 stored photos. Existing-account identity, nine exact recipe IDs, collections/plans and owner-photo 200 versus anonymous401 verified.
+
+Fresh dependency install exposed advisories published on 2026-10-22: https://github.com/advisories/GHSA-2464-fhr4-w9xw and https://github.com/advisories/GHSA-p3m5-59mp-jv5r . Updated only Next.js 16.3.8→16.4.2 and sharp 0.35.4→0.35.5 plus their platform packages/libvips. All 81 regressions and the production build pass after the update; audit now reports zero critical, one high and four moderate findings. No forced audit upgrades. Final deployment verification is recorded separately in DevWiki.
