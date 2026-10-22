@@ -1,4 +1,4 @@
-import { EXTRACTION_SYSTEM_PROMPT, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
+import { systemPromptFor, buildExtractionUserPrompt, type ExtractionOptions } from './prompt';
 import { ExtractionProviderError } from './errors';
 
 const XAI_ENDPOINT = 'https://api.x.ai/v1/chat/completions';
@@ -26,7 +26,7 @@ export async function extractWithXai(sourceUrl: string | null, text: string, opt
         temperature: 0.2,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
+          { role: 'system', content: systemPromptFor(options.mode) },
           { role: 'user', content: buildExtractionUserPrompt(sourceUrl, text, options.validationFeedback) },
         ],
       }),

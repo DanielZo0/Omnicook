@@ -1,3 +1,4 @@
+import type { ImportBudget } from './import-budget';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Agent } from 'undici';
@@ -25,9 +26,11 @@ export async function publicUrl(value: string) {
   if (!addresses.length || addresses.some(item => !isPublicAddress(item.address))) throw new SourceReadError('Only public recipe addresses can be imported.');
   return {url, addresses};
 }
-async function fetchPage(value: string, signal: AbortSignal) {
+export async function fetchSourcePage(value: string, signal: AbortSignal, onRequest?:()=>void, allowedOrigin?:(url:URL)=>boolean) {
   let current = value;
   for (let redirects = 0; redirects <= 5; redirects++) {
+    if(allowedOrigin && !allowedOrigin(new URL(current)))throw new SourceReadError('Creator search cannot leave its linked website.');
+    onRequest?.();
     const {url, addresses} = await publicUrl(current);
     // Pin this request to the validated DNS answers, so a second DNS lookup
     // cannot rebind the hostname to a private destination after validation.
@@ -89,7 +92,7 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
       const video = await fetchYoutubeDescription(videoId, controller.signal).catch(() => null);
       if (video) return {sourceUrl: parsed.href, imageUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, text: `${video.title}\n\n${video.description}`.slice(0, MAX_TEXT_CHARS)};
     }
-    const original = await fetchPage(parsed.href, controller.signal);
+    const original = await fetchSourcePage(parsed.href, controller.signal);
     let selected = original;
     if (/(?:^|\.)(?:pinterest\.[a-z.]+|pin\.it)$/.test(new URL(original.url).hostname)) {
       for (const link of original.page.destinations.slice(0, 3)) {
@@ -97,7 +100,7 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
         try { destination = new URL(link, original.url); } catch { continue; }
         if (socialHost(destination.hostname)) continue;
         try {
-          const candidate = await fetchPage(destination.href, controller.signal);
+          const candidate = await fetchSourcePage(destination.href, controller.signal);
           if (candidate.page.structuredText || hasRecipeContent(candidate.page.body)) { selected = candidate; break; }
         } catch (error) {
           if (error instanceof SourceReadError && /public|address/.test(error.message)) throw error;
@@ -112,4 +115,25 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
     if (error instanceof SourceReadError) throw error;
     throw new SourceReadError('Could not read this source. Paste the full recipe caption or original recipe link instead.');
   } finally { clearTimeout(timer); }
+}
+
+export type SourceDocument={sourceUrl:string|null;imageUrl:string|null;text:string;page:ReturnType<typeof parseSourcePage>|null;originalRecipeUrl?:string|null};
+export async function readSource(source:string,budget:ImportBudget):Promise<SourceDocument>{
+ const input=source.trim();
+ if(!/^https?:\/\//i.test(input))return {sourceUrl:null,imageUrl:null,text:input.slice(0,10000),page:null};
+ if(extractYoutubeVideoId(input)){const result=await budget.runSource(()=>resolveSource(input));return {...result,page:null};}
+ const result=await budget.runSource(signal=>fetchSourcePage(input,signal));
+ let selected=result;
+ if(/(?:^|\.)(?:pinterest\.[a-z.]+|pin\.it)$/.test(new URL(result.url).hostname)){
+  for(const link of result.page.destinations.slice(0,3)){
+   try{const destination=new URL(link,result.url);if(socialHost(destination.hostname))continue;
+    const candidate=await budget.runSource(signal=>fetchSourcePage(destination.href,signal,()=>budget.takeAdditionalRequest()));
+    if(candidate.page.structuredText||(candidate.page.body.length>=60&&/\d/.test(candidate.page.body))){selected=candidate;break;}
+   }catch(error){if(error instanceof SourceReadError&&/public|address/.test(error.message))throw error;}
+  }
+ }
+ const page=selected.page,isSocial=socialHost(new URL(selected.url).hostname);
+ const text=page.structuredText||(isSocial?(page.caption||page.description):[page.title,page.description,page.body].filter(Boolean).join('\n\n'));
+ if(!text.trim()||(isSocial&&text.length<60))throw new SourceReadError('This post cannot be read. Paste its full caption or original recipe link.');
+ return {sourceUrl:result.url,imageUrl:normalizeImageUrl(page.image,selected.url),text:text.slice(0,10000),page,originalRecipeUrl:selected!==result?selected.url:null};
 }

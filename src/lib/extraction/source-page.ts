@@ -4,7 +4,7 @@ export function decodeEntities(text: string): string {
     return point >= 0 && point <= 0x10ffff ? String.fromCodePoint(point) : original;
   }).replace(/&(nbsp|quot|apos|lt|gt|amp);/g, (_, key: string) => ({nbsp: ' ', quot: '"', apos: "'", lt: '<', gt: '>', amp: '&'}[key]!));
 }
-function attributes(tag: string): Record<string, string> {
+export function attributes(tag: string): Record<string, string> {
   const output: Record<string, string> = {};
   for (const match of tag.matchAll(/([^\s=<>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)) output[match[1].toLowerCase()] = decodeEntities(match[2] ?? match[3] ?? match[4] ?? '');
   return output;
@@ -75,5 +75,13 @@ export function parseSourcePage(html: string, sourceUrl?: string) {
   const author = typeof recipe?.author === 'string' ? recipe.author : recipe?.author && typeof recipe.author === 'object' ? String((recipe.author as Record<string, unknown>).name || '') : '';
   const structuredText = recipe ? [`Recipe: ${String(recipe.name || '')}`, `Creator: ${author}`, `Servings: ${String(recipe.recipeYield || '')}`, `Prep time: ${String(recipe.prepTime || '')}; Cook time: ${String(recipe.cookTime || '')}`, 'Ingredients:', ...(recipe.recipeIngredient as unknown[]).map(ingredientText).filter(Boolean), 'Method:', ...instructions(recipe.recipeInstructions)].join('\n') : '';
   const body = decodeEntities(html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<!--[\s\S]*?-->/g, ' ').replace(/<\/(?:p|div|li|h[1-6])>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ')).replace(/[^\S\n]+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
-  return {structuredText, caption: [...new Set(captions)].join('\n\n'), title: meta['og:title'] || decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || ''), description: meta['og:description'] || meta.description || meta['twitter:description'] || '', image: image(recipe?.image) || meta['og:image'] || meta['twitter:image'] || '', body, destinations};
+  const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)].slice(0,2000).flatMap(m=>{const a=attributes(m[1]);return a.href?[{url:a.href,text:decodeEntities(m[2].replace(/<[^>]+>/g,' ')).trim()}]:[];});
+  const searchForms = [...html.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/gi)].slice(0,40).flatMap(m=>{
+    const f=attributes(m[1]);if((f.method||'get').toLowerCase()!=='get')return [];
+    const inputs=[...m[2].matchAll(/<input\b[^>]*>/gi)].map(x=>attributes(x[0]));
+    const query=inputs.find(i=>i.name&&(i.type==='search'||/^(?:s|q|search)$/i.test(i.name)));
+    if(!query)return [];const hidden:Record<string,string>={};for(const i of inputs)if(i.type==='hidden'&&i.name)hidden[i.name]=i.value||'';
+    return [{action:f.action||sourceUrl||'',queryName:query.name,hidden}];
+  });
+  return {links,searchForms,structuredText, caption: [...new Set(captions)].join('\n\n'), title: meta['og:title'] || decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || ''), description: meta['og:description'] || meta.description || meta['twitter:description'] || '', image: image(recipe?.image) || meta['og:image'] || meta['twitter:image'] || '', body, destinations};
 }

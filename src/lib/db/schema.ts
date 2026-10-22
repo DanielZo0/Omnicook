@@ -19,6 +19,7 @@ export const recipes = pgTable('recipes', {
   title: varchar('title', { length: 180 }).notNull(),
   creator: text('creator'),
   sourceUrl: text('source_url'),
+  originalRecipeUrl: text('original_recipe_url'),
   imageUrl: text('image_url'),
   photoData: text('photo_data'),
   photoMetadata: jsonb('photo_metadata').$type<PhotoMetadata>(),

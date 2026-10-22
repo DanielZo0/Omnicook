@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import dotenv from 'dotenv';
+import {neon} from '@neondatabase/serverless';
+const [envFile,expectedHost]=process.argv.slice(2);
+if(!envFile||!expectedHost||!envFile.includes('integration'))throw Error('Pass an explicit integration env file and independently verified branch endpoint host.');
+const config=dotenv.parse(fs.readFileSync(envFile));
+const url=config.DATABASE_URL_UNPOOLED||config.DATABASE_URL;
+if(!url||new URL(url).hostname!==expectedHost||config.NEON_BRANCH_KIND!=='integration')throw Error('Integration branch identity does not match.');
+const sql=neon(url);
+await sql`ALTER TABLE recipes ADD COLUMN IF NOT EXISTS original_recipe_url text`;
+console.log('Nullable original-recipe provenance column is ready on the confirmed integration branch.');

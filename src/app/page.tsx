@@ -13,7 +13,7 @@ import {
   createCollection, createRecipeFromDraft, deleteRecipe, listCollections, listMealPlanItems, listRecipes,
   updateRecipe, uploadRecipePhoto, upsertMealPlanItem, type Collection, type MealPlanItem, type VaultRecipe,
 } from '@/lib/api/client';
-import type { RecipeDraft } from '@/lib/recipe-schema';
+import { recipeSchema, type RecipeDraft } from '@/lib/recipe-schema';
 import { BannerAd } from '@/components/ads/BannerAd';
 import { InterstitialAd } from '@/components/ads/InterstitialAd';
 import { useInterstitial } from '@/lib/ads/useInterstitial';
@@ -23,6 +23,15 @@ import { KitchenIcon, type KitchenIconName } from '@/components/KitchenIcon';
 import { prepareCookingPhoto } from '@/lib/photos/client-upload';
 import { buildImportReportEmail, failedLinkReport, importReportRecipient, type FailedLinkReport } from '@/lib/import-report';
 
+import type { EditableRecipeDraft, ImportExtraction } from '@/lib/extraction/import-schema';
+import type { ImportResult, ImportCandidate } from '@/lib/extraction/import-recipe';
+import { canSaveDraft, shouldApplyImport, screenAfterDraftOwnerChange } from '@/lib/recipes/import-review';
+import { readDraft, writeDraft, clearDraft, draftOwnerKey, type StoredDraft, type DraftOwner } from '@/lib/recipes/draft-storage';
+import { RecipeEditor } from '@/components/recipes/RecipeEditor';
+import { DraftRecovery } from '@/components/recipes/DraftRecovery';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import {safeSourceLink} from '@/lib/recipes/source-links';
+type ReviewState={draft:EditableRecipeDraft;sourceUrl:string|null;imageUrl:string|null;originalRecipeUrl?:string|null;status?:'complete'|'incomplete';missingFields?:('ingredients'|'instructions')[];message?:string;completionConfirmed?:boolean};
 type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
 type Layout = 'grid' | 'feed' | 'editorial';
 
@@ -83,7 +92,17 @@ export default function Home() {
   const [importing, setImporting] = useState(false);
   const [extractIdx, setExtractIdx] = useState(0);
   const [extractSeconds, setExtractSeconds] = useState<number | null>(null);
-  const [reviewDraft, setReviewDraft] = useState<{ draft: RecipeDraft; sourceUrl: string | null; imageUrl: string | null } | null>(null);
+  const [reviewDraft, setReviewDraft] = useState<ReviewState | null>(null);
+  const owner:DraftOwner=user?.id?{kind:'user',userId:user.id}:{kind:'guest'};
+  const ownerKey=draftOwnerKey(owner);
+  const liveStamp=useRef({ownerKey,revision:0,requestId:0});liveStamp.current.ownerKey=ownerKey;
+  const reviewOwner=useRef(ownerKey);
+  const [recovery,setRecovery]=useState<StoredDraft|null>(null);
+  const [pendingLeave,setPendingLeave]=useState<Screen|null>(null);
+  const [replacement,setReplacement]=useState<ImportCandidate|null>(null);
+  const [storageWarning,setStorageWarning]=useState<string|null>(null);
+  const [resolvingOriginal,setResolvingOriginal]=useState(false);
+  function changeReview(value:React.SetStateAction<ReviewState|null>){liveStamp.current.revision++;reviewOwner.current=ownerKey;setReviewDraft(value);}
   const [editRecipeId, setEditRecipeId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -103,6 +122,20 @@ export default function Home() {
   const extractTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const { interstitialOpen, guardNavigate, closeInterstitial } = useInterstitial();
 
+  useEffect(()=>{
+    if(sessionLoading)return;
+    liveStamp.current.revision++;liveStamp.current.requestId++;
+    setReviewDraft(null);setReplacement(null);setPendingLeave(null);reviewOwner.current=ownerKey;
+    setEditRecipeId(null);setSelectedCollectionId(null);setSource('');setStatus(null);setResolvingOriginal(false);setImporting(false);setScreen(current=>screenAfterDraftOwnerChange(current));reviewOwner.current='';
+    try{setRecovery(readDraft(window.localStorage,owner,Date.now())||(owner.kind==='user'?readDraft(window.localStorage,{kind:'guest'},Date.now()):null));}
+    catch{setStorageWarning('This draft cannot survive closing the page because device storage is unavailable.');}
+  },[ownerKey,sessionLoading]);
+  useEffect(()=>{
+    if(!reviewDraft||sessionLoading||reviewOwner.current!==ownerKey)return;
+    const persist=()=>{const now=Date.now();try{const saved=writeDraft(window.localStorage,{version:1,owner,updatedAt:now,expiresAt:now+(owner.kind==='guest'?86400000:604800000),...reviewDraft,originalRecipeUrl:reviewDraft.originalRecipeUrl??null,importStatus:reviewDraft.status??(canSaveDraft(reviewDraft.draft,reviewDraft.status,reviewDraft.completionConfirmed)?'complete':'incomplete'),missingFields:reviewDraft.missingFields??[],editRecipeId,collectionId:selectedCollectionId,sourceText:source.slice(0,20000)});if(!saved.ok)setStorageWarning('This draft cannot survive closing the page because device storage is unavailable.');}
+    catch{setStorageWarning('This draft cannot survive closing the page because device storage is unavailable.');}};
+    persist();const close=(e:BeforeUnloadEvent)=>{persist();e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',close);return()=>window.removeEventListener('beforeunload',close);
+  },[reviewDraft,source,ownerKey,sessionLoading,editRecipeId,selectedCollectionId]);
   useEffect(() => {
     if (sessionLoading) return;
     let hasSeenOnboarding = false;
@@ -205,7 +238,25 @@ export default function Home() {
     .filter((c) => c.count > 0), [collectionDefs, recipes]);
   const activeCollectionName = collectionFilter ? collections.find((c) => c.id === collectionFilter)?.name ?? collectionDefs.find((c) => c.id === collectionFilter)?.name : null;
 
-  function go(next: Screen) { guardNavigate(() => { setStatus(null); setScreen(next); }); }
+  function go(next:Screen,force=false){
+    if(!force&&reviewDraft&&reviewOwner.current===ownerKey&&(screen==='review'||screen==='edit')&&!['review','edit'].includes(next)){setPendingLeave(next);return;}
+    guardNavigate(()=>{setStatus(null);setScreen(next);});
+  }
+  function clearStoredReview(){try{clearDraft(window.localStorage,owner);}catch{}setReplacement(null);}
+  function recoverDraft(){if(!recovery)return;const guest=recovery.owner.kind==='guest'&&owner.kind==='user';
+    changeReview({draft:recovery.draft,sourceUrl:recovery.sourceUrl,imageUrl:recovery.imageUrl,originalRecipeUrl:recovery.originalRecipeUrl,status:recovery.importStatus,missingFields:recovery.missingFields,completionConfirmed:recovery.completionConfirmed});
+    setSource(recovery.sourceText);setEditRecipeId(guest?null:recovery.editRecipeId);setSelectedCollectionId(guest?null:recovery.collectionId);
+    if(guest){try{clearDraft(window.localStorage,{kind:'guest'});}catch{}}setRecovery(null);go('review',true);
+  }
+  async function resolveOriginal(url:string){if(!reviewDraft||resolvingOriginal)return;
+    const start={...liveStamp.current,requestId:++liveStamp.current.requestId};setResolvingOriginal(true);
+    try{const captionDraft:ImportExtraction={...reviewDraft.draft,completeness:reviewDraft.status??'incomplete',missingFields:reviewDraft.missingFields?.length?reviewDraft.missingFields:['instructions']};
+      const response=await fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:reviewDraft.sourceUrl||source||'recipe draft',captionDraft,originalRecipeUrl:url})});const data=await response.json();
+      if(!shouldApplyImport(start,liveStamp.current))return;
+      if(!response.ok||!data.ok){setStatus(data.message||'Could not read that recipe. Your draft is retained.');return;}
+      if(data.replacementCandidate){setReplacement(data.replacementCandidate);setStatus(data.message);}else if(data.status==='complete')changeReview(data);else setStatus(data.message);
+    }catch{if(shouldApplyImport(start,liveStamp.current))setStatus('Could not read that recipe. Your draft is retained.');}finally{setResolvingOriginal(false);}
+  }
   function openRecipe(id: string) { setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); go('detail'); }
   function openCollection(id: string) { setCollectionFilter(id); setQuery(''); go('search'); }
   function pickFilter(f: string) { setCollectionFilter(null); setFilter(f); }
@@ -225,6 +276,7 @@ export default function Home() {
     setImporting(true);
     setExtractIdx(0);
     setExtractSeconds(null);
+    const start={...liveStamp.current,requestId:++liveStamp.current.requestId};
     const started = Date.now();
     go('extracting');
     extractTimer.current = setInterval(() => {
@@ -237,12 +289,13 @@ export default function Home() {
       body: JSON.stringify({ source: attemptedSource }),
     })
       .then((res) => res.json())
-      .then((data: { ok: boolean; message?: string; draft?: RecipeDraft; sourceUrl?: string | null; imageUrl?: string | null }) => {
+      .then((data: Partial<ImportResult>&{ok:boolean}) => {
+        if(!shouldApplyImport(start,liveStamp.current))return;
         if (extractTimer.current) clearInterval(extractTimer.current);
         setExtractIdx(EXTRACT_STEPS.length - 1);
         if (data.ok && data.draft) {
           setExtractSeconds(Math.max(1, Math.round((Date.now() - started) / 1000)));
-          setReviewDraft({ draft: data.draft, sourceUrl: data.sourceUrl ?? null, imageUrl: data.imageUrl ?? null });
+          changeReview({draft:data.draft,sourceUrl:data.sourceUrl??null,imageUrl:data.imageUrl??null,originalRecipeUrl:data.originalRecipeUrl??null,status:data.status,missingFields:data.missingFields,message:data.message});
           setEditRecipeId(null);
           setSelectedCollectionId(null);
           go('review');
@@ -254,6 +307,7 @@ export default function Home() {
         }
       })
       .catch(() => {
+        if(!shouldApplyImport(start,liveStamp.current))return;
         if (extractTimer.current) clearInterval(extractTimer.current);
         go('import');
         const message = 'Import failed. Check your connection and try again.';
@@ -264,7 +318,7 @@ export default function Home() {
   }
 
   function writeItMyself() {
-    setReviewDraft({ draft: blankDraft(), sourceUrl: null, imageUrl: null });
+    changeReview({ draft: blankDraft(), sourceUrl: null, imageUrl: null });
     setExtractSeconds(null);
     setSelectedCollectionId(null);
     setNewCollectionName('');
@@ -272,19 +326,21 @@ export default function Home() {
   }
 
   function discardReview() {
+    if(reviewDraft&&!window.confirm('Discard this draft? Your unsaved changes will be removed.'))return;
+    clearStoredReview();
     const wasEditing = editRecipeId != null;
-    setReviewDraft(null);
+    changeReview(null);
     setEditRecipeId(null);
     setSelectedCollectionId(null);
     setNewCollectionName('');
-    go(wasEditing ? 'detail' : 'import');
+    go(wasEditing ? 'detail' : 'import',true);
   }
 
   function openEditRecipe() {
     if (!signedIn || !activeId) return;
     const recipe = vaultRecipes.find((r) => r.id === activeId);
     if (!recipe) return;
-    setReviewDraft({
+    changeReview({
       draft: {
         title: recipe.title,
         creator: recipe.creator,
@@ -295,6 +351,7 @@ export default function Home() {
         ingredients: recipe.ingredients.map((ingredient) => ({ ...ingredient })),
         steps: recipe.steps.map((step) => ({ ...step })),
       },
+      originalRecipeUrl:recipe.originalRecipeUrl??null,
       sourceUrl: recipe.sourceUrl,
       imageUrl: recipe.imageUrl,
     });
@@ -321,26 +378,29 @@ export default function Home() {
   }
 
   async function saveReview() {
-    if (!reviewDraft) return;
+    if (!reviewDraft || saving || !canSaveDraft(reviewDraft.draft,reviewDraft.status,reviewDraft.completionConfirmed)) return;
+    const saveable=recipeSchema.parse(reviewDraft.draft);
     if (!signedIn) { setStatus('Sign in to save recipes to your vault.'); return; }
     setSaving(true);
     try {
       if (editRecipeId) {
-        await updateRecipe(editRecipeId, { draft: reviewDraft.draft, sourceUrl: reviewDraft.sourceUrl, collectionId: selectedCollectionId });
+        await updateRecipe(editRecipeId, { draft:saveable, sourceUrl:reviewDraft.sourceUrl, originalRecipeUrl:reviewDraft.originalRecipeUrl??null, collectionId: selectedCollectionId });
         await refreshVault();
-        setReviewDraft(null);
+        clearStoredReview();
+        changeReview(null);
         setEditRecipeId(null);
         setSelectedCollectionId(null);
         setNewCollectionName('');
-        go('detail');
+        go('detail',true);
       } else {
-        await createRecipeFromDraft(reviewDraft.draft, reviewDraft.sourceUrl, selectedCollectionId, reviewDraft.imageUrl);
-        setReviewDraft(null);
+        await createRecipeFromDraft(saveable, reviewDraft.sourceUrl, selectedCollectionId, reviewDraft.imageUrl,reviewDraft.originalRecipeUrl??null);
+        clearStoredReview();
+        changeReview(null);
         setSource('');
         setSelectedCollectionId(null);
         setNewCollectionName('');
         await refreshVault();
-        go('vault');
+        go('vault',true);
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not save this recipe.');
@@ -366,52 +426,52 @@ export default function Home() {
   }
 
   function updateDraft<K extends keyof RecipeDraft>(key: K, value: RecipeDraft[K]) {
-    setReviewDraft((cur) => cur && { ...cur, draft: { ...cur.draft, [key]: value } });
+    changeReview((cur) => cur && { ...cur, draft: { ...cur.draft, [key]: value } });
   }
   function updateIngredient(index: number, field: 'quantity' | 'unit' | 'name', value: string) {
-    setReviewDraft((cur) => {
+    changeReview((cur) => {
       if (!cur) return cur;
       const ingredients = cur.draft.ingredients.map((ing, i) => (i === index ? { ...ing, [field]: field === 'name' ? value : (value || null) } : ing));
       return { ...cur, draft: { ...cur.draft, ingredients } };
     });
   }
   function updateIngredientAisle(index: number, aisle: Aisle) {
-    setReviewDraft((cur) => {
+    changeReview((cur) => {
       if (!cur) return cur;
       const ingredients = cur.draft.ingredients.map((ing, i) => (i === index ? { ...ing, aisle } : ing));
       return { ...cur, draft: { ...cur.draft, ingredients } };
     });
   }
   function addIngredient() {
-    setReviewDraft((cur) => {
+    changeReview((cur) => {
       if (!cur) return cur;
       const ingredients = [...cur.draft.ingredients, { position: cur.draft.ingredients.length, quantity: null, unit: null, name: '', notes: null, aisle: 'Pantry' as Aisle }];
       return { ...cur, draft: { ...cur.draft, ingredients } };
     });
   }
   function removeIngredient(index: number) {
-    setReviewDraft((cur) => {
+    changeReview((cur) => {
       if (!cur || cur.draft.ingredients.length <= 1) return cur;
       const ingredients = cur.draft.ingredients.filter((_, i) => i !== index).map((ing, i) => ({ ...ing, position: i }));
       return { ...cur, draft: { ...cur.draft, ingredients } };
     });
   }
   function updateStep(index: number, value: string) {
-    setReviewDraft((cur) => {
+    changeReview((cur) => {
       if (!cur) return cur;
       const steps = cur.draft.steps.map((st, i) => (i === index ? { ...st, instruction: value } : st));
       return { ...cur, draft: { ...cur.draft, steps } };
     });
   }
   function addStep() {
-    setReviewDraft((cur) => {
+    changeReview((cur) => {
       if (!cur) return cur;
       const steps = [...cur.draft.steps, { position: cur.draft.steps.length, instruction: '' }];
       return { ...cur, draft: { ...cur.draft, steps } };
     });
   }
   function removeStep(index: number) {
-    setReviewDraft((cur) => {
+    changeReview((cur) => {
       if (!cur || cur.draft.steps.length <= 1) return cur;
       const steps = cur.draft.steps.filter((_, i) => i !== index).map((st, i) => ({ ...st, position: i }));
       return { ...cur, draft: { ...cur.draft, steps } };
@@ -587,16 +647,20 @@ export default function Home() {
       <button onClick={() => go('vault')} style={s('margin-top:16px;width:100%;padding:13px;border:1px solid #ffffff3d;border-radius:14px;background:transparent;color:#d5e3d1;font-size:13px;font-weight:600')}>Keep browsing while this finishes</button>
     </div>}
 
-    {(screen === 'review' || screen === 'edit') && reviewDraft && <div className="recipe-editor" style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
+    {(screen === 'review' || screen === 'edit') && reviewDraft && reviewOwner.current===ownerKey && <div className="recipe-editor" style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
       <div style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 24px`)}>
         <div style={s('display:flex;align-items:center;justify-content:space-between;padding:0 20px')}>
           <button onClick={discardReview} style={s(`width:44px;height:44px;border:1px solid ${LINE};border-radius:50%;background:${CARD};font-size:17px`)}>‹</button>
           {extractSeconds != null && <span style={s(`display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;background:${LIME};font-size:11.5px;font-weight:700`)}>✦ Extracted in {extractSeconds}s</span>}
         </div>
+        <RecipeEditor value={reviewDraft.draft} importResult={reviewDraft.status?{ok:true,...reviewDraft,status:reviewDraft.status,originalRecipeUrl:reviewDraft.originalRecipeUrl??null,missingFields:reviewDraft.missingFields??[]}:null} onResolveOriginal={resolveOriginal} resolving={resolvingOriginal} completionConfirmed={reviewDraft.completionConfirmed??false} onConfirmCompletion={value=>changeReview(cur=>cur&&({...cur,completionConfirmed:value}))}>
+          {storageWarning&&<p role="status" style={{margin:'12px 20px'}}>{storageWarning}</p>}
+          {safeSourceLink(reviewDraft.sourceUrl)&&<p style={{margin:'12px 20px'}}><a href={safeSourceLink(reviewDraft.sourceUrl)!} target="_blank" rel="noopener noreferrer">{reviewDraft.originalRecipeUrl?'Original post':'Source'}</a>{safeSourceLink(reviewDraft.originalRecipeUrl)&&<> · <a href={safeSourceLink(reviewDraft.originalRecipeUrl)!} target="_blank" rel="noopener noreferrer">Full recipe</a></>}</p>}
+        </RecipeEditor>
         <div style={s('padding:16px 20px 0')}>
           <div style={s('font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#647187')}>{editRecipeId ? 'Edit recipe' : 'Check before saving'}</div>
           <RecipeImage src={reviewDraft.imageUrl ?? undefined} alt={reviewDraft.draft.title} style={s('width:100%;height:180px;object-fit:cover;border-radius:14px;margin:12px 0')} />
-          <input value={reviewDraft.draft.title} onChange={(e) => updateDraft('title', e.target.value)} placeholder="Recipe title" style={s("width:100%;margin-top:6px;padding:0;border:0;outline:0;background:transparent;font-family:'Lora',serif;font-weight:700;font-size:27px;line-height:1.15;box-sizing:border-box")} />
+          <input aria-label="Recipe title" value={reviewDraft.draft.title} onChange={(e) => updateDraft('title', e.target.value)} placeholder="Recipe title" style={s("width:100%;margin-top:6px;padding:0;border:0;outline:0;background:transparent;font-family:'Lora',serif;font-weight:700;font-size:27px;line-height:1.15;box-sizing:border-box")} />
           <div style={s('display:flex;gap:8px;flex-wrap:wrap;margin-top:12px')}>
             {(['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Other'] as const).map((cat) => { const on = reviewDraft.draft.category === cat; return <button key={cat} onClick={() => updateDraft('category', cat)} style={s(`padding:7px 11px;border:1px solid ${on ? GREEN : LINE};border-radius:20px;background:${on ? GREEN : CARD};color:${on ? '#fff' : INK};font-size:11.5px;font-weight:600`)}>{cat}</button>; })}
           </div>
@@ -626,7 +690,7 @@ export default function Home() {
           <b style={s("font-family:'Lora',serif;font-size:16px")}>Method</b>
           {reviewDraft.draft.steps.map((step, index) => <div key={index} style={s('display:flex;gap:9px;align-items:flex-start;padding:8px 0')}>
             <b style={s(`color:${MUTED};font-size:13px;margin-top:9px`)}>{index + 1}.</b>
-            <textarea value={step.instruction} onChange={(e) => updateStep(index, e.target.value)} style={s(`flex:1;padding:10px;border:1px solid ${LINE};border-radius:8px;font-size:16px;line-height:1.45;min-height:52px;font-family:inherit;box-sizing:border-box`)} />
+            <textarea aria-label={`Method step ${index+1}`} value={step.instruction} onChange={(e) => updateStep(index, e.target.value)} style={s(`flex:1;padding:10px;border:1px solid ${LINE};border-radius:8px;font-size:16px;line-height:1.45;min-height:52px;font-family:inherit;box-sizing:border-box`)} />
             <button onClick={() => removeStep(index)} aria-label="Remove" style={s(`width:44px;height:44px;border:0;background:transparent;color:${MUTED};font-size:18px;margin-top:5px;flex:none`)}>×</button>
           </div>)}
           <button onClick={addStep} style={s(`margin-top:6px;border:0;background:transparent;color:${GREEN};font-size:12.5px;font-weight:700`)}>+ Add a step</button>
@@ -645,12 +709,14 @@ export default function Home() {
       </div>
       <div style={s(`padding:12px 20px calc(env(safe-area-inset-bottom,0px) + 18px);border-top:1px solid ${LINE};background:${PAPER};display:flex;gap:10px`)}>
         <button onClick={discardReview} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>Discard</button>
-        <button onClick={saveReview} disabled={!signedIn || saving} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700;opacity:${!signedIn || saving ? 0.6 : 1}`)}>{saving ? 'Saving…' : !signedIn ? 'Sign in to save' : editRecipeId ? 'Save changes' : 'Save to vault'}</button>
+        <button onClick={saveReview} disabled={!signedIn || saving || !canSaveDraft(reviewDraft.draft,reviewDraft.status,reviewDraft.completionConfirmed)} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700;opacity:${!signedIn || saving || !canSaveDraft(reviewDraft.draft,reviewDraft.status,reviewDraft.completionConfirmed) ? 0.6 : 1}`)}>{saving ? 'Saving…' : !signedIn ? 'Sign in to save' : 'Save recipe'}</button>
       </div>
     </div>}
 
     {screen === 'detail' && active && <div className="recipe-detail" style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
       <div className="detail-scroll" style={s(`flex:1;${SCROLL}`)}>
+        {safeSourceLink(active.originalRecipeUrl)&&<p style={{margin:'12px 20px'}}><a href={safeSourceLink(active.originalRecipeUrl)!} target="_blank" rel="noopener noreferrer">Full recipe</a></p>}
+
         <div className="detail-hero"><RecipeImage src={active.img ?? undefined} alt={active.t} /><div className="detail-toolbar"><button className="round-button" onClick={() => go('vault')} aria-label="Back to cookbook"><KitchenIcon name="arrow" style={{transform:'rotate(180deg)'}} /></button>{signedIn && <div><button className="round-button" onClick={openEditRecipe} aria-label="Edit recipe"><KitchenIcon name="edit" size={19} /></button><button className="round-button" onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe"><KitchenIcon name="trash" size={19} /></button></div>}</div></div>
         <header className="recipe-heading"><span className="recipe-origin">{active.k} <span>from {active.s}</span></span><h1>{active.t}</h1><p><KitchenIcon name="clock" size={17} />{active.time}<span className="meta-dot" />Serves {active.n * servings}<span className="meta-dot" />{active.a.length} ingredients</p></header>
         {signedIn && <div style={s('padding:12px 20px 0;display:flex;flex-direction:column;gap:8px')}>
@@ -669,8 +735,8 @@ export default function Home() {
           </label>
           {photoStatus && <span role="status" style={s(`font-size:12px;color:${MUTED}`)}>{photoStatus}</span>}
         </div>}
-        {active.sourceUrl && <div style={s('padding:16px 20px 0')}>
-          <a href={active.sourceUrl} target="_blank" rel="noreferrer" style={s(`display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid ${LINE};border-radius:14px;background:${CARD};text-decoration:none;color:${INK}`)}>
+        {safeSourceLink(active.sourceUrl) && <div style={s('padding:16px 20px 0')}>
+          <a href={safeSourceLink(active.sourceUrl)!} target="_blank" rel="noreferrer" style={s(`display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid ${LINE};border-radius:14px;background:${CARD};text-decoration:none;color:${INK}`)}>
             <span style={s('display:flex;flex-direction:column;gap:2px')}><b style={s('font-size:12.5px')}>{active.c}</b><span style={s(`font-size:11px;color:${MUTED}`)}>View the original post</span></span>
             <span style={s(`font-size:13px;color:${GREEN}`)}>↗</span>
           </a>
@@ -824,5 +890,8 @@ export default function Home() {
       <button aria-current={screen === 'profile' ? 'page' : undefined} onClick={() => go('profile')}><KitchenIcon name="user" /><span>My kitchen</span></button>
     </nav>}
     </div>
+    {recovery&&<DraftRecovery onDismiss={()=>setRecovery(null)} title={recovery.draft.title} onRecover={recoverDraft} onDiscard={()=>{try{clearDraft(window.localStorage,recovery.owner);}catch{}setRecovery(null);}}/>}
+    {pendingLeave&&<ConfirmDialog title="Discard your unsaved draft?" onCancel={()=>setPendingLeave(null)} onConfirm={()=>{const next=pendingLeave;clearStoredReview();changeReview(null);setPendingLeave(null);go(next,true);}}><p>Your unsaved changes will be removed.</p></ConfirmDialog>}
+    {replacement&&<ConfirmDialog title="Replace with this recipe?" confirmLabel="Replace recipe" onCancel={()=>setReplacement(null)} onConfirm={()=>{changeReview(replacement);setReplacement(null);}}><p>{replacement.draft.title}</p><p>{replacement.draft.ingredients.map(i=>[i.quantity,i.unit,i.name].filter(Boolean).join(' ')).join('; ')}</p><p>This differs from the caption. Replacing uses this page’s quantities and method.</p></ConfirmDialog>}
   </main>;
 }

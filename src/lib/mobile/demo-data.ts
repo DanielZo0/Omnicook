@@ -15,6 +15,7 @@ export type MobileRecipe = {
   photoMetadata?: PhotoMetadata | null;
   photoPending?: boolean;
   sourceUrl: string | null;
+  originalRecipeUrl?: string | null;
   collectionId: string | null;
   a: MobileIngredient[]; // ingredients
   m: string[]; // steps

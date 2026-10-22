@@ -79,3 +79,12 @@ for (const [name, key, extract] of [
     }
   });
 }
+test('import mode may repair an erroneous refusal only when source has multiple measured ingredients',async()=>{
+ const requests=responses([{error:'insufficient_recipe_content'},{...partial,steps:[],completeness:'incomplete',missingFields:['instructions']}]);
+ const result=await selectExtractionProvider().extract(null,'Ingredients:\n350 g farina\n140 g burro\n80 ml latte',{mode:'import'});
+ assert.equal(result.completeness,'incomplete');assert.equal(requests.length,2);assert.match(requests[1].messages[0].content,/incomplete/);
+});
+test('import refusal on non-recipe content stays a refusal',async()=>{
+ const requests=responses([{error:'insufficient_recipe_content'},complete]);
+ const result=await selectExtractionProvider().extract(null,'My favourite biscuits, full recipe linked in bio.',{mode:'import'});assert.equal(result.error,'insufficient_recipe_content');assert.equal(requests.length,1);
+});

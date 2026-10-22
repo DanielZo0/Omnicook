@@ -24,6 +24,7 @@ export function vaultToMobile(recipe: VaultRecipe): MobileRecipe {
     photoMetadata: recipe.photoMetadata,
     photoPending: recipe.photoPending,
     sourceUrl: recipe.sourceUrl,
+    originalRecipeUrl: recipe.originalRecipeUrl??null,
     collectionId: recipe.collectionId,
     a: recipe.ingredients.map((ingredient) => ({
       amt: [ingredient.quantity, ingredient.unit].filter(Boolean).join(' ') || '—',
