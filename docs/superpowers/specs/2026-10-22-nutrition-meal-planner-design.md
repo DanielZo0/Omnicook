@@ -1,6 +1,6 @@
 # Nutrition-led meal planning
 
-Date: 2026-10-22. Status: user agreed to the suggestion workflow; the complete design and defaults below are proposed for review. No implementation or production release yet.
+Date: 2026-10-22. Status: full design approved by the user; sources must remain replaceable because they may be updated later. No implementation or production release yet.
 
 ## Intent and agreed direction
 
@@ -8,7 +8,13 @@ Make Omnicook useful for choosing meals across days and weeks against nutritiona
 
 The user welcomed optional suggestions of real, sourced recipes when the saved cookbook cannot fill nutritional gaps. Search saved recipes first. Suggestions show their source, preparation time, estimated nutrition and reason; users can preview, dismiss, swap or add to a plan. Saving a suggested recipe to the cookbook is a separate action. Generation offers My recipes only or Include new suggestions.
 
-This builds on the approved intentional-planning scope in `2026-10-18-ux-ui-fixes-design.md`, stage 2; its old blue-palette instructions are superseded by the deployed Sunny Kitchen design. The following implementation defaults are the designer's proposals, not individually confirmed user choices.
+This builds on the approved intentional-planning scope in `2026-10-18-ux-ui-fixes-design.md`, stage 2; its old blue-palette instructions are superseded by the deployed Sunny Kitchen design. The user approved the full design, including the defaults below, on 2026-10-22.
+
+## Replaceable sources
+
+Both nutrient-data providers and recipe-suggestion providers implement separate server-side adapters returning provider-neutral validated models. Planner, shopping, target evaluation and UI consume these normalised models; USDA/TheMealDB field names and request formats remain inside their adapters. Select enabled adapters through server configuration, never through arbitrary client-supplied URLs or credentials. Changing a source requires a new adapter/configuration, not a planner rewrite.
+
+Every record reference and cache key includes provider ID, external ID and normalisation version. Stored analyses and suggested-recipe snapshots retain attribution, source URLs, units, food state, portion mappings, provider/version identity and retrieval time, so disabling/replacing a source never destroys existing saved plans or silently changes their nutrition. An explicit re-analysis may use the newly configured nutrient source; keep the prior analysis available for historical provenance. Provider removal does not imply permission to keep data beyond its licence; adapter enablement includes reviewing retention/attribution terms. Credentials are separate server-only configuration for each source.
 
 ## Planner basics
 
