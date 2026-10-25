@@ -14,3 +14,13 @@ test('native recovery dismissal never invokes explicit discard',()=>{
  dismissDialog({preventDefault:()=>prevented++},()=>discarded++,()=>dismissed++);
  assert.equal(discarded,0);assert.equal(dismissed,1);assert.equal(prevented,1);
 });
+
+test('save review requires selection and completion; switching resets method and confirmation',()=>{
+ const {canSaveReview,chooseAlternative,alternativeHasEdits}=require('../src/lib/recipes/import-review.ts');
+ const r={draft:partial,status:'incomplete',alternatives:[{id:'a',label:'A',ingredients:[{name:'chocolate',position:0,quantity:'1',unit:'part',notes:'A'}]},{id:'b',label:'B',ingredients:[{name:'chocolate',position:0,quantity:'2',unit:'part',notes:'B'}]}]};
+ assert.equal(canSaveReview({...r,draft:{...partial,steps:[{position:0,instruction:'Mix.'}]},completionConfirmed:true}),false);
+ const a=chooseAlternative(r,'a');assert.equal(alternativeHasEdits(a),false);assert.equal(canSaveReview(a),false);
+ const edited={...a,draft:{...a.draft,steps:[{position:0,instruction:'Mix.'}]},completionConfirmed:true};assert.equal(canSaveReview(edited),true);assert.equal(alternativeHasEdits(edited),true);
+ const before=JSON.stringify(edited);const b=chooseAlternative(edited,'b');assert.equal(b.draft.steps.length,0);assert.equal(b.completionConfirmed,false);assert.equal(JSON.stringify(edited),before);
+ assert.equal(canSaveReview({...edited,selectedAlternativeId:'bad'}),false);
+});

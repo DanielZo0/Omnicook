@@ -15,7 +15,7 @@ export function chooseAlternative<T extends FormulaReview>(result:T,id:string):T
  if(!choice)throw new Error('Choose an available formula.');
  const base=result.alternativeBaseTitle||result.draft.title;
  return {...result,selectedAlternativeId:id,alternativeBaseTitle:base,status:'incomplete',completionConfirmed:false,
-  draft:{...result.draft,title:`${base.slice(0,180-choice.label.length-3)} — ${choice.label}`,ingredients:choice.ingredients.map((i,position)=>({...i,position})),steps:[]}};
+  draft:{...result.draft,title:`${base.slice(0,180-choice.label.length-3)} â€” ${choice.label}`,ingredients:choice.ingredients.map((i,position)=>({...i,position})),steps:[]}};
 }
 export function canSaveReview(result:FormulaReview):boolean {
  if(result.alternatives&&!result.alternatives.some(a=>a.id===result.selectedAlternativeId))return false;
