@@ -81,6 +81,8 @@ export function ingredientGrams(
   const q = parseQuantity(quantity);
   if (!q) return null;
   const u = normalizeUnit(unit);
+  // Relative recipe proportions do not define a batch mass.
+  if (/^(?:part|parts|parte|parti)$/.test(u)) return null;
   const mass: Record<string, number> = {
     g: 1,
     kg: 1000,

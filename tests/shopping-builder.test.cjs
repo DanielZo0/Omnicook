@@ -5,3 +5,5 @@ test('shopping counts each occurrence, merges compatible units and preserves unk
  assert.ok(buildShoppingList([meal('g','200',1,null)])[0].amounts[0].unknownYield);
  assert.equal(buildShoppingList([meal('g',null)])[0].amounts[0].quantity,null);
 });
+
+test('parts stay separate relative contributions even with a serving count',()=>{const rows=buildShoppingList([meal('part','1',2,1),meal('part','1',1,1)]);assert.equal(rows[0].amounts.length,2);assert.equal(rows[0].amounts[0].quantity,'1');assert.equal(rows[0].amounts[0].unknownYield,true);});

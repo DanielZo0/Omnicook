@@ -9,3 +9,8 @@ test('food-specific portions are required for cups, and raw states cannot be gue
  assert.equal(ingredientGrams('2','cup',{portions:[]}),null);
  assert.deepEqual(ingredientGrams('1/2','kg',{portions:[]}),{min:500,max:500});
 });
+
+test('relative parts never become grams even if a provider advertises a part portion',()=>{
+ assert.equal(ingredientGrams('1.5','part',{portions:[]}),null);
+ assert.equal(ingredientGrams('1.5','part',{portions:[{unit:'part',grams:100}]}),null);
+});

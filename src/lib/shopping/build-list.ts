@@ -42,12 +42,13 @@ export function buildShoppingList(
         };
         rows.set(key, row);
       }
-      const quantity = scaleQuantity(
+      const relative = /^(?:part|parts|parte|parti)$/.test(normalizeUnit(i.unit));
+      const quantity = relative ? i.quantity : scaleQuantity(
           i.quantity,
           r.servings ? entry.servings / r.servings : 1,
         ),
         unit = normalizeUnit(i.unit),
-        unknownYield = !r.servings;
+        unknownYield = !r.servings || relative;
       const q = parseQuantity(quantity),
         same = row.amounts.find(
           (a) =>
