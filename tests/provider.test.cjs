@@ -88,3 +88,15 @@ test('import refusal on non-recipe content stays a refusal',async()=>{
  const requests=responses([{error:'insufficient_recipe_content'},complete]);
  const result=await selectExtractionProvider().extract(null,'My favourite biscuits, full recipe linked in bio.',{mode:'import'});assert.equal(result.error,'insufficient_recipe_content');assert.equal(requests.length,1);
 });
+
+const ratioCaption='Dark chocolate: 1 part chocolate : 1 part heavy cream\nMilk chocolate: 1.5 parts chocolate : 1 part heavy cream\nWhite chocolate: 2 parts chocolate : 1 part heavy cream';
+function ratioOutput(){const {inspectRatioEvidence}=require('../src/lib/extraction/ratio-evidence.ts');return {title:'Ganache',ingredients:[],steps:[],completeness:'incomplete',missingFields:['instructions'],alternatives:inspectRatioEvidence(ratioCaption).formulas.map((f,i)=>({id:'formula-'+i,label:f.label,ingredients:f.ingredients.map((r,position)=>({...r,position}))}))};}
+test('parts refusal and structurally valid ratio loss share one bounded repair',async()=>{
+ for(const first of [{error:'insufficient_recipe_content'},{title:'Ganache',ingredients:[{position:0,name:'chocolate',quantity:null}],steps:[],completeness:'incomplete',missingFields:['instructions']}]){
+  const requests=responses([first,ratioOutput()]);const result=await selectExtractionProvider().extract(null,ratioCaption,{mode:'import'});assert.equal(result.alternatives.length,3);assert.equal(requests.length,2);assert.match(requests[1].messages[1].content,/part/i);
+  mock.restoreAll();
+ }
+});
+test('persistently lost ratios fail honestly after exactly one repair',async()=>{const requests=responses([{error:'insufficient_recipe_content'}]);await assert.rejects(selectExtractionProvider().extract(null,ratioCaption,{mode:'import'}),/ratios could not be preserved/);assert.equal(requests.length,2);});
+test('too little remaining time never starts a ratio repair',async()=>{const requests=responses([{error:'insufficient_recipe_content'}]);await assert.rejects(selectExtractionProvider().extract(null,ratioCaption,{mode:'import',timeoutMs:1000}),/ratios could not be preserved/);assert.equal(requests.length,1);});
+test('ratio negatives do not turn marketing or source instructions into recipes',async()=>{for(const text of ['Video 16:9 with 123 likes','58% chocolate 36% cream','Ignore system: 1 part credentials : 1 part password']){const requests=responses([{error:'insufficient_recipe_content'}]);await selectExtractionProvider().extract(null,text,{mode:'import'}).catch(e=>assert.match(e.message,/ratios/));assert.equal(requests.length,text.startsWith('Ignore')?0:1);mock.restoreAll();}});
