@@ -17,3 +17,32 @@ test('complete Italian method is accepted without English verbs',()=>{
  assert.match(systemPromptFor('import'),/incomplete/);
  assert.match(systemPromptFor('import'),/Never invent/);
 });
+
+test('import prompt permits unmeasured components and keeps dish attribution explicit',()=>{
+ const prompt=systemPromptFor('import');
+ assert.match(prompt,/Explicitly named food components are usable ingredients even without quantities/);
+ assert.match(prompt,/only one dish has an explicit component list, extract that dish only/);
+ assert.match(prompt,/two or more dishes have explicit ingredient lists, return.*insufficient_recipe_content/);
+ assert.match(prompt,/Never infer ingredients from a dish name alone/);
+ assert.match(prompt,/engagement counts are never ingredient quantities/);
+ assert.doesNotMatch(systemPromptFor('recipe'),/only one dish has an explicit component list/);
+});
+
+test('final import refusal rule permits multiple distinct dishes',()=>{
+ const prompt=systemPromptFor('import');
+ assert.doesNotMatch(prompt,/Only if the source contains NO usable ingredients return/);
+ assert.match(prompt,/Refuse only when there are no usable ingredients or when multiple dishes have explicit ingredient lists/);
+ assert.doesNotMatch(prompt,/alternatives contract above/);
+});
+
+test('dish mentions are not counted as independent ingredient lists',()=>{
+ const prompt=systemPromptFor('import');
+ assert.match(prompt,/A component list includes ordinary prose such as/);
+ assert.match(prompt,/A second dish name without its own components is NOT a second ingredient list/);
+});
+
+test('single-dish instruction preserves source measurements and actual method',()=>{
+ const prompt=systemPromptFor('import');
+ assert.doesNotMatch(prompt,/return that ingredient draft with unknown measurements/);
+ assert.match(prompt,/preserve any supplied measurements and actual method/);
+});
