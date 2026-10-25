@@ -72,7 +72,16 @@ export async function fetchSourcePage(value: string, signal: AbortSignal, onRequ
   }
   throw new SourceReadError('This link redirects too many times. Paste the original recipe link instead.');
 }
-function socialHost(host: string) { return /(?:^|\.)(?:instagram\.com|pinterest\.[a-z.]+|pin\.it)$/.test(host); }
+function socialHost(host: string) { return /(?:^|\.)(?:instagram\.com|facebook\.com|pinterest\.[a-z.]+|pin\.it)$/.test(host); }
+function facebookPostText(description: string): string {
+  const text = description.trim();
+  // A login shell may return 200 and a long description. Neither its body nor
+  // related embedded recipes establish content belonging to the requested post.
+  if (text.length < 60 || /^(?:log (?:in|into)\b|sign (?:in|up)\b|you must log in\b|you (?:must|need to) (?:accept|allow) cookies\b|allow (?:all |essential )?cookies (?:on facebook|to (?:use|continue)|for (?:facebook|this (?:site|website)))\b)/i.test(text)) {
+    throw new SourceReadError('This post cannot be read. Paste its full caption or original recipe link.');
+  }
+  return text;
+}
 function hasRecipeContent(text: string) {
   const measuredIngredients = /\b(?:g|kg|ml|cup|cups|tbsp|tsp|tablespoon|teaspoon|ingredients)\b/i.test(text);
   const countedIngredients = /\b\d+(?:[/.]\d+)?\s+(?!(?:likes?|comments?|followers?|views?|minutes?|hours?|seconds?|days?|steps?|recipes?)\b)[a-z]+/i.test(text);
@@ -108,8 +117,9 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
       }
     }
     const page = selected.page, isSocial = socialHost(new URL(selected.url).hostname);
-    const text = page.structuredText || (isSocial ? [page.caption, page.description].filter(Boolean).join('\n\n') : [page.title, page.description, page.body].filter(Boolean).join('\n\n'));
-    if (!text.trim() || (isSocial && !hasRecipeContent(text) && !page.structuredText)) throw new SourceReadError('This post does not expose a complete recipe. Paste the full caption or the original recipe link instead.');
+    const facebook = /(?:^|\.)facebook\.com$/.test(new URL(selected.url).hostname);
+    const text = facebook ? facebookPostText(page.description) : page.structuredText || (isSocial ? [page.caption, page.description].filter(Boolean).join('\n\n') : [page.title, page.description, page.body].filter(Boolean).join('\n\n'));
+    if (!text.trim() || (isSocial && !facebook && !hasRecipeContent(text) && !page.structuredText)) throw new SourceReadError('This post does not expose a complete recipe. Paste the full caption or the original recipe link instead.');
     return {sourceUrl: original.url, imageUrl: normalizeImageUrl(page.image, selected.url), text: text.slice(0, MAX_TEXT_CHARS)};
   } catch (error) {
     if (error instanceof SourceReadError) throw error;
@@ -133,7 +143,7 @@ export async function readSource(source:string,budget:ImportBudget):Promise<Sour
   }
  }
  const page=selected.page,isSocial=socialHost(new URL(selected.url).hostname);
- const text=page.structuredText||(isSocial?(page.caption||page.description):[page.title,page.description,page.body].filter(Boolean).join('\n\n'));
+ const text=/(?:^|\.)facebook\.com$/.test(new URL(selected.url).hostname)?facebookPostText(page.description):page.structuredText||(isSocial?(page.caption||page.description):[page.title,page.description,page.body].filter(Boolean).join('\n\n'));
  if(!text.trim()||(isSocial&&text.length<60))throw new SourceReadError('This post cannot be read. Paste its full caption or original recipe link.');
  return {sourceUrl:result.url,imageUrl:normalizeImageUrl(page.image,selected.url),text:text.slice(0,10000),page,originalRecipeUrl:selected!==result?selected.url:null};
 }
