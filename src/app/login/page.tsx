@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useState } from 'react';
 import { authClient, AUTH_CONFIGURED } from '@/lib/auth/client';
 import { useSession } from '@/lib/auth/session';
 import { s } from '@/lib/mobile/style';
-import { KitchenIcon } from '@/components/KitchenIcon';
 
 export default function LoginPage() {
   const { user, loading: sessionLoading } = useSession();
@@ -52,7 +51,7 @@ export default function LoginPage() {
   }
 
   return <main className="login-screen">
-    <div className="login-brand"><KitchenIcon name="book" size={28} />omnicook<span aria-hidden="true">✿</span></div>
+    <div className="login-brand"><img src="/omnicook-mark.svg" width={46} height={46} alt="" /><span>omnicook.</span></div>
     <p className="login-intro">Private recipe vault</p>
     <h1>{mode === 'sign-in' ? 'Sign in to Omnicook.' : 'Create your account.'}</h1>
 

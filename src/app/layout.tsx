@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: 'Omnicook',
   description: 'Your recipe universe',
   manifest: '/manifest.webmanifest',
-  icons: { icon: '/omnicook-icon.svg', apple: '/apple-touch-icon.png' },
+  icons: { icon: '/omnicook-icon.svg?v=skillet-1', apple: '/apple-touch-icon.png?v=skillet-1' },
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Omnicook' },
 };
 

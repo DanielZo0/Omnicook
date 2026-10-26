@@ -530,7 +530,7 @@ export default function Home() {
   return <main className={`app-shell screen-${screen}`}>
     <InterstitialAd open={interstitialOpen} onClose={closeInterstitial} />
     {showSidebar && <aside className="kitchen-sidebar" aria-label="Cookbook sidebar">
-      <button className="wordmark" onClick={() => { pickFilter('All recipes'); go('vault'); }} aria-label="Omnicook home"><span className="brand-symbol"><KitchenIcon name="book" size={24} /></span>omnicook<span className="brand-dot">.</span></button>
+      <button className="wordmark" onClick={() => { pickFilter('All recipes'); go('vault'); }} aria-label="Omnicook home"><span className="brand-symbol"><img src="/omnicook-mark.svg" width={34} height={34} alt="" /></span>omnicook<span className="brand-dot">.</span></button>
       <button className="primary-button sidebar-add" onClick={() => go('import')}><KitchenIcon name="plus" size={20} /> Add a recipe</button>
       <nav className="sidebar-nav" aria-label="Main navigation">
         {navigation.map(item => <button key={item.screen} className={`sidebar-link ${navActive(item.screen) ? 'is-active' : ''}`} aria-current={navActive(item.screen) ? 'page' : undefined} onClick={() => { if(item.screen === 'vault') pickFilter('All recipes'); go(item.screen); }}><KitchenIcon name={item.icon} /><span>{item.label}</span>{item.screen === 'vault' && <span className="nav-count">{recipes.length}</span>}</button>)}
@@ -541,7 +541,7 @@ export default function Home() {
     </aside>}
     <div className="app-content">
     {screen === 'onboarding' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:${TOP_SAFE} 26px calc(env(safe-area-inset-bottom,0px) + 32px);box-sizing:border-box;background:${GREEN};color:#fffef8`)}>
-      <div style={s("font-family:var(--display);font-weight:700;font-size:30px")}>omni<i style={s(`color:${LIME}`)}>cook</i></div>
+      <div className="onboarding-brand"><img src="/omnicook-mark.svg" width={44} height={44} alt="" /><span>omnicook.</span></div>
       <div style={s('flex:1;display:flex;flex-direction:column;justify-content:center;gap:26px')}>
         <div style={s("font-family:var(--display);font-weight:700;font-size:38px;line-height:1.08")}>Every recipe you saved, in one place.</div>
         <div style={s('font-size:15px;line-height:1.55;color:#d5e3d1;max-width:290px')}>Share a post from Instagram, TikTok or YouTube. Omnicook reads it and files a tidy recipe card in your vault.</div>
@@ -560,7 +560,7 @@ export default function Home() {
 
     {screen === 'vault' && <div className="vault-screen app-scroll">
       <header className="cookbook-header">
-        <div><div className="mobile-brand"><KitchenIcon name="book" size={20} /> omnicook<span>.</span></div><h1>Your cookbook<span className="kitchen-flower" aria-hidden="true">✿</span></h1><p>{loadingVault ? 'Gathering your recipes…' : `${recipes.length} recipes, ready when you are.`}</p></div>
+        <div><div className="mobile-brand"><img src="/omnicook-mark.svg" width={34} height={34} alt="" /> omnicook<span>.</span></div><h1>Your cookbook<span className="kitchen-flower" aria-hidden="true">✿</span></h1><p>{loadingVault ? 'Gathering your recipes…' : `${recipes.length} recipes, ready when you are.`}</p></div>
         <button className="avatar mobile-account" aria-label="My kitchen" onClick={() => go('profile')}><KitchenIcon name="user" size={21} /></button>
         <button className="outline-button header-add" onClick={() => go('import')}><KitchenIcon name="plus" size={18} /> Add a recipe</button>
       </header>

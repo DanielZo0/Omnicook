@@ -345,7 +345,9 @@ body:has(.app-shell) { min-height: 0; }
 .recipe-editor section[aria-label="Incomplete recipe"] button { border: 0; border-radius: 12px; padding: 10px 12px; background: var(--green); color: var(--paper); }
 .login-screen { min-height: 100svh; min-height: 100dvh; width: 100%; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; padding: max(env(safe-area-inset-top), 32px) 26px max(env(safe-area-inset-bottom), 32px); color: var(--ink); }
 .login-brand { font-family: var(--display); font-size: 30px; font-weight: 500; display: flex; justify-content: center; align-items: center; gap: 9px; margin-bottom: 30px; }
-.login-brand > span { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; margin-left: 5px; background: var(--lemon); font-size: 35px; transform: rotate(-14deg); }
+.onboarding-brand { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 500; font-size: 30px; letter-spacing: -.6px; }
+.onboarding-brand img { background: var(--lemon); border-radius: 12px; }
+.brand-symbol img, .mobile-brand img, .login-brand img, .onboarding-brand img { display: block; flex-shrink: 0; }
 .login-intro { color: var(--muted); text-align: center; font-size: 13px; margin: 0 0 8px; }
 .login-screen h1 { font-family: var(--display); font-size: 32px; font-weight: 500; line-height: 1.15; text-align: center; margin: 8px 0 26px; }
 .login-screen input { min-height: 50px; }
