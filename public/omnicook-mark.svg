@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="#28563d">
+  <g transform="rotate(-45 220 300)">
+    <path fill-rule="evenodd" d="M342 277h104a23 23 0 0 1 0 46H342Zm86 17a6 6 0 0 0 0 12h12a6 6 0 0 0 0-12Z"/>
+  </g>
+  <path fill-rule="evenodd" d="M352 300a132 132 0 1 1-264 0 132 132 0 1 1 264 0Zm-20 0a112 112 0 1 0-224 0 112 112 0 1 0 224 0Z"/>
+  <circle cx="220" cy="300" r="98" fill="none" stroke="#28563d" stroke-width="9"/>
+</svg>

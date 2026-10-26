@@ -9,6 +9,7 @@
     "lint": "next lint",
     "test:isolation": "node scripts/account-isolation.mjs",
     "test": "node --test tests/*.test.cjs",
+    "brand:icons": "node scripts/generate-brand-icons.mjs",
     "db:recipe-images": "node scripts/migrate-recipe-images.mjs",
     "db:recipe-photos": "node scripts/migrate-recipe-photos.mjs",
     "db:push": "drizzle-kit push",
