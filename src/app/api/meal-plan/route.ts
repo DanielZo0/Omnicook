@@ -1,60 +1,47 @@
-import { NextResponse } from 'next/server';
-import { and, asc, eq } from 'drizzle-orm';
-import { z } from 'zod';
-import { db, isDbConfigured } from '@/lib/db/client';
-import { mealPlanItems, recipes } from '@/lib/db/schema';
-import { requireUserId } from '@/lib/auth/require-user';
-
-export async function GET() {
-  if (!isDbConfigured()) {
-    return NextResponse.json({ ok: false, message: 'The database is not configured yet.' }, { status: 503 });
-  }
-  const userId = await requireUserId();
-  if (!userId) return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
-
-  const rows = await db()
-    .select({
-      id: mealPlanItems.id,
-      recipeId: mealPlanItems.recipeId,
-      plannedFor: mealPlanItems.plannedFor,
-      mealSlot: mealPlanItems.mealSlot,
-      recipeTitle: recipes.title,
-    })
-    .from(mealPlanItems)
-    .innerJoin(recipes, eq(recipes.id, mealPlanItems.recipeId))
-    .where(and(eq(mealPlanItems.userId, userId), eq(recipes.userId, userId)))
-    .orderBy(asc(mealPlanItems.plannedFor));
-
-  return NextResponse.json({ ok: true, items: rows });
+import { plannerRoute } from "@/lib/planner/http";
+import {
+  getPlannerWeek,
+  putPlanEntry,
+  removePlanEntry,
+} from "@/lib/planner/repository";
+import {
+  entryRequestSchema,
+  deleteRequestSchema,
+  dateSchema,
+} from "@/lib/planner/schemas";
+import { localToday } from "@/lib/planner/dates";
+export async function GET(request: Request) {
+  return plannerRoute(async (userId) => {
+    const state = await getPlannerWeek(
+      userId,
+      dateSchema.parse(
+        new URL(request.url).searchParams.get("week") || localToday(),
+      ),
+    );
+    return {
+      state,
+      items: state.entries.map((e) => ({
+        id: e.id,
+        recipeId: e.source.kind === "recipe" ? e.source.recipeId : null,
+        recipeTitle: e.recipe?.title || "Recipe unavailable",
+        plannedFor: e.plannedFor,
+        mealSlot: e.mealSlot,
+      })),
+    };
+  });
 }
-
-const upsertRequestSchema = z.object({
-  recipeId: z.string().uuid(),
-  plannedFor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  mealSlot: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
-});
-
 export async function POST(request: Request) {
-  if (!isDbConfigured()) {
-    return NextResponse.json({ ok: false, message: 'The database is not configured yet.' }, { status: 503 });
-  }
-  const userId = await requireUserId();
-  if (!userId) return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
-
-  const parsed = upsertRequestSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ ok: false, message: 'Invalid meal plan entry.' }, { status: 400 });
-  const { recipeId, plannedFor, mealSlot } = parsed.data;
-
-  const [recipe] = await db().select({ id: recipes.id }).from(recipes)
-    .where(and(eq(recipes.id, recipeId), eq(recipes.userId, userId)));
-  if (!recipe) return NextResponse.json({ ok: false, message: 'Recipe not found.' }, { status: 404 });
-
-  await db().insert(mealPlanItems)
-    .values({ userId, recipeId, plannedFor, mealSlot })
-    .onConflictDoUpdate({
-      target: [mealPlanItems.userId, mealPlanItems.plannedFor, mealPlanItems.mealSlot],
-      set: { recipeId },
-    });
-
-  return NextResponse.json({ ok: true });
+  return plannerRoute(async (userId) => ({
+    state: await putPlanEntry(
+      userId,
+      entryRequestSchema.parse(await request.json()),
+    ),
+  }));
+}
+export async function DELETE(request: Request) {
+  return plannerRoute(async (userId) => {
+    const input = deleteRequestSchema.parse(await request.json());
+    await removePlanEntry(userId, input.id, input.expectedRevision);
+    return {};
+  });
 }

@@ -13,6 +13,10 @@ export function vaultToMobile(recipe: VaultRecipe): MobileRecipe {
     try { source = new URL(recipe.sourceUrl).hostname.replace(/^www\./, ''); } catch { /* keep default */ }
   }
   return {
+    structuredIngredients: recipe.ingredients,
+    yieldServings: recipe.servings,
+    prepMinutes: recipe.prepMinutes,
+    cookMinutes: recipe.cookMinutes,
     id: recipe.id,
     t: recipe.title,
     c: recipe.creator ?? source,

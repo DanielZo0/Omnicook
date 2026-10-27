@@ -5,6 +5,8 @@ import { extractWithGemini } from './gemini';
 import { importExtractionSchema } from './import-schema';
 import { recipeSchema } from '../recipe-schema';
 import type { ExtractionOptions } from './prompt';
+import {inspectRatioEvidence,ratioFidelityIssues} from './ratio-evidence';
+import {SourceReadError} from './fetch-source';
 
 export type ExtractionProvider = {
   name: 'groq' | 'nvidia' | 'xai' | 'gemini';
@@ -13,18 +15,34 @@ export type ExtractionProvider = {
 
 export function withValidationRepair(provider: ExtractionProvider): ExtractionProvider {
   return {...provider, extract: async (sourceUrl, text, options) => {
-    // A 40-second total AI budget plus the 14-second source budget fits the
-    // route's 60-second limit. Never start an unbounded retry.
     const deadline = Date.now() + Math.min(40000, options?.timeoutMs ?? 40000);
+    const evidence=options?.mode==='import'?inspectRatioEvidence(text):{kind:'none' as const,formulas:[]};
+    const ratioError=()=>new SourceReadError('Ingredient ratios could not be preserved reliably. Paste the full caption or enter the formula manually.');
+    // Ambiguous attribution cannot be repaired by asking a model to guess.
+    if(evidence.kind==='ambiguous')throw ratioError();
     const raw = await provider.extract(sourceUrl, text, {...options, timeoutMs: Math.max(1, deadline - Date.now())});
     const parsed = (options?.mode === 'import' ? importExtractionSchema : recipeSchema).safeParse(raw);
-    const refused = raw && typeof raw === 'object' && 'error' in raw;
+    const fidelity=options?.mode==='import'&&parsed.success?ratioFidelityIssues(evidence,importExtractionSchema.parse(raw)):[];
+    const refused = Boolean(raw && typeof raw === 'object' && 'error' in raw);
     const remaining = deadline - Date.now();
     const measured = new Set([...text.matchAll(/\b\d+(?:[.,/]\d+)?\s*(?:g|kg|ml|cups?|tbsp|tsp)\b[^\n]*/gi)].map(m=>m[0].trim().toLowerCase()));
-    const repairImportRefusal=refused&&options?.mode==='import'&&measured.size>=3;
-    if (parsed.success || (refused&&!repairImportRefusal) || remaining < 5000) return raw;
-    const validationFeedback = repairImportRefusal ? 'The source includes multiple measured ingredients. Missing instructions alone are not a reason to refuse in import mode. Preserve those source-backed ingredients with completeness=incomplete, missingFields=[instructions], steps=[] when no method is present. Never invent a method. If ingredients genuinely cannot be extracted, keep the refusal.' : parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ');
-    return provider.extract(sourceUrl, text, {...options, timeoutMs: remaining, validationFeedback});
+    // Parts syntax is also used metaphorically. It cannot by itself overrule
+    // the model's judgement that there are no usable food ingredients.
+    const recipeContext=/\b(?:recipes?|ingredients?|ricett[ae]|ingredienti|recetas?|ingredientes|recettes?|ingrédients)\b/i.test(text);
+    if(refused&&evidence.kind==='formulas'&&!recipeContext&&measured.size<3)return raw;
+    const repairImportRefusal=refused&&options?.mode==='import'&&(measured.size>=3||evidence.kind==='formulas'&&recipeContext);
+    if(parsed.success&&!fidelity.length)return raw;
+    if((refused&&!repairImportRefusal)||remaining<5000){if(evidence.kind==='formulas')throw ratioError();return raw;}
+    const validationFeedback = evidence.kind==='formulas'
+      ? 'Verify these are food ingredient formulas, never metaphors or marketing. Preserve every explicit ingredient ratio, variant label and product qualifier. Use part units, not absolute amounts. Separate alternatives; never invent a method. Source ratio evidence: '+JSON.stringify(evidence.formulas)+'; '+fidelity.join('; ')
+      : repairImportRefusal ? 'The source includes multiple measured ingredients. Missing instructions alone are not a reason to refuse in import mode. Preserve those source-backed ingredients with completeness=incomplete, missingFields=[instructions], steps=[] when no method is present. Never invent a method. If ingredients genuinely cannot be extracted, keep the refusal.'
+      : parsed.success?'':parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    const repaired=await provider.extract(sourceUrl, text, {...options, timeoutMs: remaining, validationFeedback});
+    if(evidence.kind==='formulas'){
+      const value=importExtractionSchema.safeParse(repaired);
+      if(!value.success||ratioFidelityIssues(evidence,value.data).length)throw ratioError();
+    }
+    return repaired;
   }};
 }
 

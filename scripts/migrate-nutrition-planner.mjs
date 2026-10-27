@@ -1,0 +1,11 @@
+import {migratePlanner} from './planner-migration.mjs';
+import fs from 'node:fs';
+import dotenv from 'dotenv';
+import {neon} from '@neondatabase/serverless';
+const [envFile,expectedHost]=process.argv.slice(2);
+if(!envFile?.includes('integration')||!expectedHost)throw Error('Pass explicit integration environment and independently verified direct endpoint.');
+const env=dotenv.parse(fs.readFileSync(envFile));const url=env.DATABASE_URL_UNPOOLED;
+if(env.NEON_BRANCH_KIND!=='integration'||!url||new URL(url).hostname!==expectedHost||expectedHost.includes('-pooler'))throw Error('Verified direct integration endpoint required.');
+const sql=neon(url);
+await migratePlanner(sql);
+console.log('Additive planner schema installed on verified integration branch; original business rows retained.');

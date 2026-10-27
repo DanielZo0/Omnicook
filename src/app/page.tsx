@@ -23,15 +23,16 @@ import { KitchenIcon, type KitchenIconName } from '@/components/KitchenIcon';
 import { prepareCookingPhoto } from '@/lib/photos/client-upload';
 import { buildImportReportEmail, failedLinkReport, importReportRecipient, type FailedLinkReport } from '@/lib/import-report';
 
-import type { EditableRecipeDraft, ImportExtraction } from '@/lib/extraction/import-schema';
+import type { EditableRecipeDraft, ImportExtraction, FormulaAlternative } from '@/lib/extraction/import-schema';
 import type { ImportResult, ImportCandidate } from '@/lib/extraction/import-recipe';
-import { canSaveDraft, shouldApplyImport, screenAfterDraftOwnerChange } from '@/lib/recipes/import-review';
+import { canSaveReview, chooseAlternative, alternativeHasEdits, shouldApplyImport, screenAfterDraftOwnerChange } from '@/lib/recipes/import-review';
 import { readDraft, writeDraft, clearDraft, draftOwnerKey, type StoredDraft, type DraftOwner } from '@/lib/recipes/draft-storage';
 import { RecipeEditor } from '@/components/recipes/RecipeEditor';
 import { DraftRecovery } from '@/components/recipes/DraftRecovery';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Planner } from '@/components/planner/Planner';
 import {safeSourceLink} from '@/lib/recipes/source-links';
-type ReviewState={draft:EditableRecipeDraft;sourceUrl:string|null;imageUrl:string|null;originalRecipeUrl?:string|null;status?:'complete'|'incomplete';missingFields?:('ingredients'|'instructions')[];message?:string;completionConfirmed?:boolean};
+type ReviewState={draft:EditableRecipeDraft;sourceUrl:string|null;imageUrl:string|null;originalRecipeUrl?:string|null;status?:'complete'|'incomplete';missingFields?:('ingredients'|'instructions')[];message?:string;completionConfirmed?:boolean;alternatives?:FormulaAlternative[];selectedAlternativeId?:string|null;alternativeBaseTitle?:string};
 type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
 type Layout = 'grid' | 'feed' | 'editorial';
 
@@ -39,19 +40,6 @@ const INK = '#28563d', GREEN = '#28563d', LIME = '#f9d94e', CORAL = '#28563d', P
 const SCROLL = 'overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain';
 const TOP_SAFE = 'calc(env(safe-area-inset-top,0px) + 20px)';
 const BOTTOM_SAFE = '28px';
-
-function currentWeek() {
-  const today = new Date();
-  const dow = today.getDay();
-  const mondayOffset = dow === 0 ? -6 : 1 - dow;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + mondayOffset);
-  return DAYS.map((day, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return { day, short: day.slice(0, 3), iso: d.toISOString().slice(0, 10) };
-  });
-}
 
 function blankDraft(): RecipeDraft {
   return {
@@ -74,6 +62,7 @@ export default function Home() {
 
   const [bootChecked, setBootChecked] = useState(false);
   const [screen, setScreen] = useState<Screen>('vault');
+  const [planningRecipeId,setPlanningRecipeId]=useState<string|null>(null);
   const [layout, setLayout] = useState<Layout>('grid');
   const [filter, setFilter] = useState('All recipes');
   const [query, setQuery] = useState('');
@@ -110,8 +99,7 @@ export default function Home() {
   const [mealPlan, setMealPlan] = useState<MealPlanItem[]>([]);
   const [collectionsState, setCollectionsState] = useState<Collection[]>([]);
   const [loadingVault, setLoadingVault] = useState(false);
-  const [demoPlan, setDemoPlan] = useState<Record<string, string | null>>({ Monday: 'd1', Tuesday: 'd2', Wednesday: null, Thursday: 'd3', Friday: null, Saturday: null, Sunday: 'd4' });
-  const [ticked, setTicked] = useState<Record<string, boolean>>({});
+  const vaultRequest = useRef(0);
   const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -132,7 +120,7 @@ export default function Home() {
   },[ownerKey,sessionLoading]);
   useEffect(()=>{
     if(!reviewDraft||sessionLoading||reviewOwner.current!==ownerKey)return;
-    const persist=()=>{const now=Date.now();try{const saved=writeDraft(window.localStorage,{version:1,owner,updatedAt:now,expiresAt:now+(owner.kind==='guest'?86400000:604800000),...reviewDraft,originalRecipeUrl:reviewDraft.originalRecipeUrl??null,importStatus:reviewDraft.status??(canSaveDraft(reviewDraft.draft,reviewDraft.status,reviewDraft.completionConfirmed)?'complete':'incomplete'),missingFields:reviewDraft.missingFields??[],editRecipeId,collectionId:selectedCollectionId,sourceText:source.slice(0,20000)});if(!saved.ok)setStorageWarning('This draft cannot survive closing the page because device storage is unavailable.');}
+    const persist=()=>{const now=Date.now();try{const saved=writeDraft(window.localStorage,{version:1,owner,updatedAt:now,expiresAt:now+(owner.kind==='guest'?86400000:604800000),...reviewDraft,originalRecipeUrl:reviewDraft.originalRecipeUrl??null,importStatus:reviewDraft.status??(canSaveReview(reviewDraft)?'complete':'incomplete'),missingFields:reviewDraft.missingFields??[],editRecipeId,collectionId:selectedCollectionId,sourceText:source.slice(0,20000)});if(!saved.ok)setStorageWarning('This draft cannot survive closing the page because device storage is unavailable.');}
     catch{setStorageWarning('This draft cannot survive closing the page because device storage is unavailable.');}};
     persist();const close=(e:BeforeUnloadEvent)=>{persist();e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',close);return()=>window.removeEventListener('beforeunload',close);
   },[reviewDraft,source,ownerKey,sessionLoading,editRecipeId,selectedCollectionId]);
@@ -148,34 +136,38 @@ export default function Home() {
   }, [bootChecked, sessionLoading, signedIn, screen]);
 
   async function refreshVault() {
+    const request=++vaultRequest.current, requestOwner=ownerKey;
     setLoadingVault(true);
     try {
       const [recipes, plan, collectionsList] = await Promise.all([listRecipes(), listMealPlanItems(), listCollections()]);
+      if(request!==vaultRequest.current || requestOwner!==liveStamp.current.ownerKey)return;
       setVaultRecipes(recipes);
       setMealPlan(plan);
       setCollectionsState(collectionsList);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Could not load your vault.');
+      if(request===vaultRequest.current && requestOwner===liveStamp.current.ownerKey)setStatus(error instanceof Error ? error.message : 'Could not load your vault.');
     } finally {
-      setLoadingVault(false);
+      if(request===vaultRequest.current && requestOwner===liveStamp.current.ownerKey)setLoadingVault(false);
     }
   }
 
   useEffect(() => {
+    vaultRequest.current++;setVaultRecipes([]);setMealPlan([]);setCollectionsState([]);
     if (signedIn) refreshVault();
     else { setVaultRecipes([]); setMealPlan([]); setCollectionsState([]); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedIn]);
+  }, [signedIn,ownerKey]);
 
   useEffect(() => () => { if (extractTimer.current) clearInterval(extractTimer.current); }, []);
 
   useEffect(() => {
     if (!signedIn || !vaultRecipes.some(recipe => recipe.photoPending)) return;
+    const requestOwner=ownerKey;
     const timer = setTimeout(() => {
-      listRecipes().then(setVaultRecipes).catch(() => {});
+      listRecipes().then(recipes=>{if(requestOwner===liveStamp.current.ownerKey)setVaultRecipes(recipes);}).catch(() => {});
     }, 5000);
     return () => clearTimeout(timer);
-  }, [signedIn, vaultRecipes]);
+  }, [signedIn, vaultRecipes,ownerKey]);
 
   async function addCookingPhoto(file: File, recipeId: string) {
     if (uploadingPhoto) return;
@@ -192,31 +184,6 @@ export default function Home() {
 
   const recipes: MobileRecipe[] = signedIn ? vaultRecipes.map(vaultToMobile) : DEMO_RECIPES;
   const active = recipes.find((r) => r.id === activeId) ?? recipes[0];
-  const weekDates = useMemo(currentWeek, []);
-
-  const weekRecipes = useMemo(() => weekDates.map((d) => {
-    const id = signedIn ? mealPlan.find((mp) => mp.plannedFor === d.iso)?.recipeId : demoPlan[d.day];
-    return recipes.find((r) => r.id === id) ?? null;
-  }), [weekDates, mealPlan, demoPlan, recipes, signedIn]);
-
-  const groceryNames = useMemo(() => {
-    const set = new Set<string>();
-    weekRecipes.forEach((r) => r?.a.forEach((ingredient) => set.add(ingredient.name)));
-    return [...set];
-  }, [weekRecipes]);
-
-  const grocerySections = useMemo(() => {
-    const sections: Record<Aisle, string[]> = { Produce: [], 'Dairy & chilled': [], Pantry: [] };
-    const seen = new Set<string>();
-    weekRecipes.forEach((r) => r?.a.forEach((ingredient) => {
-      if (seen.has(ingredient.name)) return;
-      seen.add(ingredient.name);
-      sections[ingredient.aisle].push(ingredient.name);
-    }));
-    return (Object.entries(sections) as [Aisle, string[]][]).filter(([, items]) => items.length > 0);
-  }, [weekRecipes]);
-
-  const plannedCount = weekRecipes.filter(Boolean).length;
   const filteredVault = recipes.filter((r) => matchesFilter(r, filter));
   const showVaultCards = filteredVault.length > 0;
   const vaultEmptyTitle = loadingVault
@@ -244,18 +211,23 @@ export default function Home() {
   }
   function clearStoredReview(){try{clearDraft(window.localStorage,owner);}catch{}setReplacement(null);}
   function recoverDraft(){if(!recovery)return;const guest=recovery.owner.kind==='guest'&&owner.kind==='user';
-    changeReview({draft:recovery.draft,sourceUrl:recovery.sourceUrl,imageUrl:recovery.imageUrl,originalRecipeUrl:recovery.originalRecipeUrl,status:recovery.importStatus,missingFields:recovery.missingFields,completionConfirmed:recovery.completionConfirmed});
+    changeReview({draft:recovery.draft,sourceUrl:recovery.sourceUrl,imageUrl:recovery.imageUrl,originalRecipeUrl:recovery.originalRecipeUrl,status:recovery.importStatus,missingFields:recovery.missingFields,completionConfirmed:recovery.completionConfirmed,alternatives:recovery.alternatives,selectedAlternativeId:recovery.selectedAlternativeId,alternativeBaseTitle:recovery.alternativeBaseTitle});
     setSource(recovery.sourceText);setEditRecipeId(guest?null:recovery.editRecipeId);setSelectedCollectionId(guest?null:recovery.collectionId);
     if(guest){try{clearDraft(window.localStorage,{kind:'guest'});}catch{}}setRecovery(null);go('review',true);
   }
-  async function resolveOriginal(url:string){if(!reviewDraft||resolvingOriginal)return;
+  async function resolveOriginal(url:string){if(!reviewDraft||resolvingOriginal||reviewDraft.alternatives&&!reviewDraft.selectedAlternativeId)return;
     const start={...liveStamp.current,requestId:++liveStamp.current.requestId};setResolvingOriginal(true);
     try{const captionDraft:ImportExtraction={...reviewDraft.draft,completeness:reviewDraft.status??'incomplete',missingFields:reviewDraft.missingFields?.length?reviewDraft.missingFields:['instructions']};
       const response=await fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:reviewDraft.sourceUrl||source||'recipe draft',captionDraft,originalRecipeUrl:url})});const data=await response.json();
       if(!shouldApplyImport(start,liveStamp.current))return;
       if(!response.ok||!data.ok){setStatus(data.message||'Could not read that recipe. Your draft is retained.');return;}
-      if(data.replacementCandidate){setReplacement(data.replacementCandidate);setStatus(data.message);}else if(data.status==='complete')changeReview(data);else setStatus(data.message);
+      if(data.replacementCandidate){setReplacement(data.replacementCandidate);setStatus(data.message);}else if(data.status==='complete'){if(reviewDraft.alternatives)setReplacement(data);else changeReview(data);}else setStatus(data.message);
     }catch{if(shouldApplyImport(start,liveStamp.current))setStatus('Could not read that recipe. Your draft is retained.');}finally{setResolvingOriginal(false);}
+  }
+  function selectFormula(id:string){
+    if(!reviewDraft||reviewDraft.selectedAlternativeId===id)return;
+    if(alternativeHasEdits(reviewDraft)&&!window.confirm('Switch formula and discard your edits to the current formula?'))return;
+    changeReview(chooseAlternative(reviewDraft,id));
   }
   function openRecipe(id: string) { setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); go('detail'); }
   function openCollection(id: string) { setCollectionFilter(id); setQuery(''); go('search'); }
@@ -295,7 +267,7 @@ export default function Home() {
         setExtractIdx(EXTRACT_STEPS.length - 1);
         if (data.ok && data.draft) {
           setExtractSeconds(Math.max(1, Math.round((Date.now() - started) / 1000)));
-          changeReview({draft:data.draft,sourceUrl:data.sourceUrl??null,imageUrl:data.imageUrl??null,originalRecipeUrl:data.originalRecipeUrl??null,status:data.status,missingFields:data.missingFields,message:data.message});
+          changeReview({draft:data.draft,sourceUrl:data.sourceUrl??null,imageUrl:data.imageUrl??null,originalRecipeUrl:data.originalRecipeUrl??null,status:data.status,missingFields:data.missingFields,message:data.message,alternatives:data.alternatives,selectedAlternativeId:data.selectedAlternativeId,alternativeBaseTitle:data.alternativeBaseTitle});
           setEditRecipeId(null);
           setSelectedCollectionId(null);
           go('review');
@@ -378,7 +350,7 @@ export default function Home() {
   }
 
   async function saveReview() {
-    if (!reviewDraft || saving || !canSaveDraft(reviewDraft.draft,reviewDraft.status,reviewDraft.completionConfirmed)) return;
+    if (!reviewDraft || saving || !canSaveReview(reviewDraft)) return;
     const saveable=recipeSchema.parse(reviewDraft.draft);
     if (!signedIn) { setStatus('Sign in to save recipes to your vault.'); return; }
     setSaving(true);
@@ -477,24 +449,6 @@ export default function Home() {
       return { ...cur, draft: { ...cur.draft, steps } };
     });
   }
-
-  function cycleDay(day: string, iso: string) {
-    if (recipes.length === 0) return;
-    if (signedIn) {
-      const currentId = mealPlan.find((mp) => mp.plannedFor === iso)?.recipeId;
-      const idx = recipes.findIndex((r) => r.id === currentId);
-      const next = recipes[(idx + 1) % recipes.length];
-      upsertMealPlanItem(next.id, iso, 'dinner').then(refreshVault).catch((error) => setStatus(error instanceof Error ? error.message : 'Could not update the plan.'));
-    } else {
-      setDemoPlan((prev) => {
-        const idx = recipes.findIndex((r) => r.id === prev[day]);
-        const next = recipes[(idx + 1) % recipes.length];
-        return { ...prev, [day]: next.id };
-      });
-    }
-  }
-
-  function toggleTick(name: string) { setTicked((prev) => ({ ...prev, [name]: !prev[name] })); }
 
   function askChef() {
     if (!chefQuestion.trim() || chefLoading) return;
@@ -653,7 +607,7 @@ export default function Home() {
           <button onClick={discardReview} style={s(`width:44px;height:44px;border:1px solid ${LINE};border-radius:50%;background:${CARD};font-size:17px`)}>‹</button>
           {extractSeconds != null && <span style={s(`display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;background:${LIME};font-size:11.5px;font-weight:700`)}>✦ Extracted in {extractSeconds}s</span>}
         </div>
-        <RecipeEditor value={reviewDraft.draft} importResult={reviewDraft.status?{ok:true,...reviewDraft,status:reviewDraft.status,originalRecipeUrl:reviewDraft.originalRecipeUrl??null,missingFields:reviewDraft.missingFields??[]}:null} onResolveOriginal={resolveOriginal} resolving={resolvingOriginal} completionConfirmed={reviewDraft.completionConfirmed??false} onConfirmCompletion={value=>changeReview(cur=>cur&&({...cur,completionConfirmed:value}))}>
+        <RecipeEditor onSelectAlternative={selectFormula} value={reviewDraft.draft} importResult={reviewDraft.status?{ok:true,...reviewDraft,status:reviewDraft.status,originalRecipeUrl:reviewDraft.originalRecipeUrl??null,missingFields:reviewDraft.missingFields??[]}:null} onResolveOriginal={resolveOriginal} resolving={resolvingOriginal} completionConfirmed={reviewDraft.completionConfirmed??false} onConfirmCompletion={value=>changeReview(cur=>cur&&({...cur,completionConfirmed:value}))}>
           {storageWarning&&<p role="status" style={{margin:'12px 20px'}}>{storageWarning}</p>}
           {safeSourceLink(reviewDraft.sourceUrl)&&<p style={{margin:'12px 20px'}}><a href={safeSourceLink(reviewDraft.sourceUrl)!} target="_blank" rel="noopener noreferrer">{reviewDraft.originalRecipeUrl?'Original post':'Source'}</a>{safeSourceLink(reviewDraft.originalRecipeUrl)&&<> · <a href={safeSourceLink(reviewDraft.originalRecipeUrl)!} target="_blank" rel="noopener noreferrer">Full recipe</a></>}</p>}
         </RecipeEditor>
@@ -668,6 +622,7 @@ export default function Home() {
             <input type="number" min={1} value={reviewDraft.draft.servings ?? ''} onChange={(e) => updateDraft('servings', e.target.value ? Number(e.target.value) : null)} style={s(`width:72px;padding:9px 10px;border:1px solid ${LINE};border-radius:8px;background:${CARD};font-size:16px`)} />
           </label>
         </div>
+        {(!reviewDraft.alternatives||Boolean(reviewDraft.selectedAlternativeId))&&<>
         <div style={s(`margin:20px 20px 0;padding:14px 15px;border:1px solid ${LINE};border-radius:16px;background:${CARD}`)}>
           <div style={s('display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px')}>
             <b style={s("font-family:var(--display);font-size:16px")}>Ingredients</b>
@@ -680,6 +635,7 @@ export default function Home() {
               <input aria-label="Ingredient" value={ingredient.name} onChange={(e) => updateIngredient(index, 'name', e.target.value)} placeholder="ingredient" style={s(`flex:1;padding:9px 8px;border:1px solid ${LINE};border-radius:7px;font-size:16px;min-width:0`)} />
               <button onClick={() => removeIngredient(index)} aria-label="Remove" style={s(`width:44px;height:44px;border:0;background:transparent;color:${MUTED};font-size:18px;flex:none`)}>×</button>
             </div>
+            {ingredient.notes&&<p style={{fontSize:12,lineHeight:1.5,margin:'6px 0'}}>{ingredient.notes}</p>}
             <div style={s('display:flex;gap:6px;margin-top:6px')}>
               {AISLES.map((aisle) => { const on = ingredient.aisle === aisle; return <button key={aisle} onClick={() => updateIngredientAisle(index, aisle)} style={s(`padding:4px 9px;border:1px solid ${on ? GREEN : LINE};border-radius:20px;background:${on ? GREEN : 'transparent'};color:${on ? '#fff' : MUTED};font-size:10.5px;font-weight:600`)}>{AISLE_SHORT[aisle]}</button>; })}
             </div>
@@ -695,6 +651,7 @@ export default function Home() {
           </div>)}
           <button onClick={addStep} style={s(`margin-top:6px;border:0;background:transparent;color:${GREEN};font-size:12.5px;font-weight:700`)}>+ Add a step</button>
         </div>
+        </>}
         {signedIn && <div style={s('margin:14px 20px 0;padding:14px 15px;border-radius:16px;background:#f0f2d9')}>
           <b style={s('font-size:12.5px')}>Save to a collection</b>
           <div style={s('display:flex;gap:8px;flex-wrap:wrap;margin-top:10px')}>
@@ -709,7 +666,7 @@ export default function Home() {
       </div>
       <div style={s(`padding:12px 20px calc(env(safe-area-inset-bottom,0px) + 18px);border-top:1px solid ${LINE};background:${PAPER};display:flex;gap:10px`)}>
         <button onClick={discardReview} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>Discard</button>
-        <button onClick={saveReview} disabled={!signedIn || saving || !canSaveDraft(reviewDraft.draft,reviewDraft.status,reviewDraft.completionConfirmed)} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700;opacity:${!signedIn || saving || !canSaveDraft(reviewDraft.draft,reviewDraft.status,reviewDraft.completionConfirmed) ? 0.6 : 1}`)}>{saving ? 'Saving…' : !signedIn ? 'Sign in to save' : 'Save recipe'}</button>
+        <button onClick={saveReview} disabled={!signedIn || saving || !canSaveReview(reviewDraft)} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700;opacity:${!signedIn || saving || !canSaveReview(reviewDraft) ? 0.6 : 1}`)}>{saving ? 'Saving…' : !signedIn ? 'Sign in to save' : 'Save recipe'}</button>
       </div>
     </div>}
 
@@ -774,7 +731,7 @@ export default function Home() {
         </div>
       </div>
         <div className="detail-actions" style={s('padding:8px 20px calc(env(safe-area-inset-bottom,0px) + 24px);display:flex;gap:10px')}>
-          <button onClick={() => go('planner')} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>▦ Plan</button>
+          <button onClick={() => {setPlanningRecipeId(active.id);go('planner');}} style={s(`padding:15px 16px;border:1px solid ${LINE};border-radius:14px;background:${CARD};font-size:14px;font-weight:700`)}>Add to plan</button>
           <button onClick={startCook} style={s(`flex:1;padding:15px;border:0;border-radius:14px;background:${GREEN};color:#fff;font-size:14.5px;font-weight:700`)}>Start cooking</button>
         </div>
     </div>}
@@ -808,41 +765,7 @@ export default function Home() {
       </div>
     </div>}
 
-    {screen === 'planner' && <div className="utility-screen planner-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE}`)}>
-      <header className="utility-heading planner-heading"><h1>Your weekly menu</h1><p>A little planning. More time around the table.</p></header>
-      <div className="week-board">
-        {weekDates.map((d, i) => { const rec = weekRecipes[i]; return <div key={d.iso} className="day-card">
-          <span style={s(`width:34px;flex:none;font-size:11.5px;font-weight:700;color:${MUTED}`)}>{d.short}</span>
-          {rec?.img && <RecipeImage src={rec.img} alt={rec.t} style={s('width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none')} />}
-          <span style={s(`flex:1;font-size:13.5px;font-weight:600;line-height:1.3;color:${rec ? INK : '#9aa398'}`)}>{rec ? rec.t : 'Nothing planned yet'}</span>
-          <button aria-label={`${rec ? 'Change' : 'Add'} recipe for ${d.day}`} onClick={() => cycleDay(d.day, d.iso)} style={s('flex:none;border:0;border-radius:9px;padding:8px 11px;background:#f0f2d9;color:#28563d;font-size:11.5px;font-weight:700')}>{rec ? 'Change' : 'Add'}</button>
-        </div>; })}
-      </div>
-      <button onClick={() => go('grocery')} style={s('display:flex;align-items:center;justify-content:space-between;width:calc(100% - 40px);margin:14px 20px 0;padding:17px;border:0;border-radius:17px;background:#f0f2d9;text-align:left')}>
-        <span style={s('display:flex;flex-direction:column;gap:3px')}>
-          <b style={s("font-family:var(--display);font-size:17px")}>Shopping list</b>
-          <span style={s(`font-size:12px;color:${MUTED}`)}>{groceryNames.length} items from {plannedCount} planned recipes</span>
-        </span>
-        <span style={s('font-size:15px;color:#8a6a1f')}>›</span>
-      </button>
-    </div>}
-
-    {screen === 'grocery' && <div className="utility-screen grocery-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE};background:${PAPER}`)}>
-      <div style={s('display:flex;align-items:center;gap:11px;padding:0 20px')}>
-        <button onClick={() => go('planner')} style={s(`width:44px;height:44px;border:1px solid ${LINE};border-radius:50%;background:${CARD};font-size:17px`)}>‹</button>
-        <span style={s(`font-size:13px;font-weight:700;color:${MUTED}`)}>Back to plan</span>
-      </div>
-      <header className="utility-heading planner-heading"><h1>Your shopping list</h1><p>{groceryNames.length} ingredients from {plannedCount} planned recipes.</p></header>
-      {grocerySections.length === 0 && <p style={s(`padding:16px 20px 0;font-size:12.5px;color:${MUTED}`)}>Plan a few dinners to build your list.</p>}
-      {grocerySections.map(([name, items]) => <div key={name} style={s('margin:16px 20px 0;padding:16px;border-radius:17px;background:#f0f2d9')}>
-        <div style={s(`font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${CORAL};margin-bottom:6px`)}>{name}</div>
-        {items.map((item) => { const on = !!ticked[item]; return <button key={item} aria-pressed={!!ticked[item]} onClick={() => toggleTick(item)} style={s('display:flex;align-items:center;gap:11px;width:100%;padding:9px 0;border:0;background:transparent;text-align:left')}>
-          <span style={s(`display:grid;place-items:center;width:19px;height:19px;flex:none;border:1.5px solid #cfc7ae;border-radius:5px;font-size:11px;color:#fff;background:${on ? GREEN : 'transparent'}`)}>{on ? '✓' : ''}</span>
-          <span style={s(`font-size:13.5px;color:${on ? '#9aa398' : INK};text-decoration:${on ? 'line-through' : 'none'}`)}>{item}</span>
-        </button>; })}
-      </div>)}
-      <div style={s(`margin:16px 20px 0;font-size:12px;color:${MUTED}`)}>Tap an item to tick it off. Duplicates across recipes are merged automatically.</div>
-    </div>}
+    {(screen === 'planner' || screen === 'grocery') && <Planner key={ownerKey} ownerKey={ownerKey} signedIn={signedIn} recipes={recipes} mode={screen==='planner'?'planner':'shopping'} initialRecipeId={planningRecipeId} onConsumeRecipe={()=>setPlanningRecipeId(null)} onOpenRecipe={openRecipe} onMode={mode=>go(mode==='planner'?'planner':'grocery')} onCookbookChanged={refreshVault} />}
 
     {screen === 'profile' && <div className="utility-screen profile-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE}`)}>
       {!signedIn ? <div style={s('padding:20px')}>

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { authClient, AUTH_CONFIGURED } from '@/lib/auth/client';
 import { useSession } from '@/lib/auth/session';
 import { s } from '@/lib/mobile/style';
+import { KitchenIcon } from '@/components/KitchenIcon';
 
 export default function LoginPage() {
   const { user, loading: sessionLoading } = useSession();

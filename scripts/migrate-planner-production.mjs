@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import dotenv from 'dotenv';
+import {neon} from '@neondatabase/serverless';
+import {migratePlanner} from './planner-migration.mjs';
+const [file,expectedHost,confirmation]=process.argv.slice(2);
+if(!file||!expectedHost||confirmation!=='--apply-production')throw Error('Explicit env file, independently verified direct production host and --apply-production required.');
+const env=dotenv.parse(fs.readFileSync(file));
+const url=env.DATABASE_URL_UNPOOLED;
+if(!url||new URL(url).hostname!==expectedHost||expectedHost.includes('-pooler'))throw Error('Verified direct production endpoint required.');
+await migratePlanner(neon(url));
+console.log('Additive planner production migration applied.');

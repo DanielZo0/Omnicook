@@ -1,4 +1,5 @@
 import { after, NextResponse } from 'next/server';
+import { withRecipeMutation } from '@/lib/db/recipe-mutation';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { sourceLinkSchema } from '@/lib/recipes/source-links';
@@ -32,12 +33,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.success) return NextResponse.json({ ok: false, message: 'Invalid update payload.' }, { status: 400 });
   const { draft, sourceUrl, originalRecipeUrl, collectionId, imageUrl } = parsed.data;
 
-  const [existing] = await db().select({ id: recipes.id, title:recipes.title, photoMetadata:recipes.photoMetadata }).from(recipes)
+  return withRecipeMutation(userId, async tx => {
+  const [existing] = await tx.select({ id: recipes.id, title:recipes.title, photoMetadata:recipes.photoMetadata }).from(recipes)
     .where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
   if (!existing) return NextResponse.json({ ok: false, message: 'Recipe not found.' }, { status: 404 });
 
   if (collectionId !== undefined && collectionId !== null) {
-    const [collection] = await db().select({ id: collections.id }).from(collections)
+    const [collection] = await tx.select({ id: collections.id }).from(collections)
       .where(and(eq(collections.id, collectionId), eq(collections.userId, userId)));
     if (!collection) return NextResponse.json({ ok: false, message: 'Collection not found.' }, { status: 404 });
   }
@@ -47,8 +49,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let dishChanged = false;
   if (draft && existing.photoMetadata?.kind !== 'user' && existing.photoMetadata?.kind !== 'source') {
     const [ingredients,steps] = await Promise.all([
-      db().select({name:recipeIngredients.name}).from(recipeIngredients).where(eq(recipeIngredients.recipeId,id)).orderBy(recipeIngredients.position),
-      db().select({instruction:recipeSteps.instruction}).from(recipeSteps).where(eq(recipeSteps.recipeId,id)).orderBy(recipeSteps.position),
+      tx.select({name:recipeIngredients.name}).from(recipeIngredients).where(eq(recipeIngredients.recipeId,id)).orderBy(recipeIngredients.position),
+      tx.select({instruction:recipeSteps.instruction}).from(recipeSteps).where(eq(recipeSteps.recipeId,id)).orderBy(recipeSteps.position),
     ]);
     dishChanged = photoRecipeChanged({title:existing.title,ingredients,steps},draft);
   }
@@ -71,15 +73,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   if (collectionId !== undefined) updates.collectionId = collectionId;
 
-  await db().update(recipes).set({...updates, ...(resetPhoto ? {
+  await tx.update(recipes).set({...updates, ...(resetPhoto ? {
     // Check at write time: an upload can win after the earlier ownership read.
     photoData:sql`CASE WHEN ${recipes.photoMetadata}->>'kind' = 'user' THEN ${recipes.photoData} ELSE NULL END`,
     photoMetadata:sql`CASE WHEN ${recipes.photoMetadata}->>'kind' = 'user' THEN ${recipes.photoMetadata} ELSE NULL END`,
   } : {})}).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
 
   if (draft) {
-    await db().delete(recipeIngredients).where(eq(recipeIngredients.recipeId, id));
-    await db().insert(recipeIngredients).values(draft.ingredients.map((ingredient) => ({
+    await tx.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, id));
+    await tx.insert(recipeIngredients).values(draft.ingredients.map((ingredient) => ({
       recipeId: id,
       position: ingredient.position,
       quantity: ingredient.quantity,
@@ -89,8 +91,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       aisle: ingredient.aisle,
     })));
 
-    await db().delete(recipeSteps).where(eq(recipeSteps.recipeId, id));
-    await db().insert(recipeSteps).values(draft.steps.map((step) => ({
+    await tx.delete(recipeSteps).where(eq(recipeSteps.recipeId, id));
+    await tx.insert(recipeSteps).values(draft.steps.map((step) => ({
       recipeId: id,
       position: step.position,
       instruction: step.instruction,
@@ -99,6 +101,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (photosEnabled() && resetPhoto) after(() => ensureRecipePhoto(id,userId));
   return NextResponse.json({ ok: true });
+  });
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -109,11 +112,13 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!userId) return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
 
   const { id } = await params;
-  const [existing] = await db().select({ id: recipes.id }).from(recipes)
+  return withRecipeMutation(userId, async tx => {
+  const [existing] = await tx.select({ id: recipes.id }).from(recipes)
     .where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
   if (!existing) return NextResponse.json({ ok: false, message: 'Recipe not found.' }, { status: 404 });
 
-  await db().delete(recipes).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
+  await tx.delete(recipes).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
 
   return NextResponse.json({ ok: true });
+  });
 }

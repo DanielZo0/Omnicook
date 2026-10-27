@@ -400,3 +400,94 @@ body:has(.app-shell) { min-height: 0; }
   .sidebar-add:hover { background: #efd03c; color: var(--green); }
   .nav-add:hover > span, .collection-strip button:hover { background: #e9edce; }
 }
+
+/* Intentional meal planning, shared by phone and tablet. */
+.planner-workspace { padding: max(env(safe-area-inset-top), 24px) 20px 36px; }
+.planner-workspace .utility-heading { margin: 0 0 24px; }
+.planner-title-line { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.planner-title-line .outline-button { min-height: 44px; padding: 10px 13px; }
+.planner-week-control { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.planner-week-control > div { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; font-size: 14px; }
+.planner-icon-button { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink); font: inherit; font-size: 24px; }
+.planner-text-button { background: transparent; border: 0; color: var(--green); font: inherit; font-size: 12px; font-weight: 600; min-height: 44px; padding: 8px 2px; text-align: left; }
+.planner-muted { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.planner-notice { background: var(--soft); border-radius: 16px; padding: 14px; font-size: 12px; line-height: 1.6; }
+.planner-notice a { text-decoration: underline; }
+.planner-error { padding: 12px 16px; border: 1px solid #b27b4b; border-radius: 16px; color: #6a3f24; margin: 12px 0; font-size: 13px; }
+.planner-error p { line-height: 1.5; }
+.planner-generate-panel { background: var(--soft); padding: 20px; border-radius: 24px; margin: 22px 0; }
+.planner-generate-panel h2, .planner-nutrition-review h2 { font-family: var(--display); font-size: 24px; font-weight: 500; margin: 0 0 8px; }
+.planner-generate-panel p { font-size: 13px; line-height: 1.6; margin: 8px 0 16px; }
+.planner-generation-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+.planner-generation-actions label { flex: 1; min-width: 170px; display: flex; flex-direction: column; gap: 7px; font-size: 12px; }
+.planner-workspace select, .planner-dialog select, .planner-dialog input:not([type=checkbox]), .planner-dialog textarea { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; min-height: 46px; }
+.planner-dialog textarea { resize: vertical; min-height: 80px; }
+.planner-slots { display: flex; gap: 7px; flex-wrap: wrap; margin: 18px 0; }
+.planner-slots button { flex: 1; padding: 9px 10px; min-height: 44px; border: 1px solid var(--line); border-radius: 22px; background: transparent; font-size: 12px; text-transform: capitalize; }
+.planner-slots button[aria-pressed=true] { background: var(--green); border-color: var(--green); color: var(--paper); }
+.planner-days { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.planner-day { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 17px; }
+.planner-day.is-today { border-color: var(--green); }
+.planner-day-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.planner-day-heading h2 { font-size: 17px; font-family: var(--display); font-weight: 500; margin: 0; }
+.planner-empty-slot { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; min-height: 80px; background: var(--soft); border: 1px dashed #a6b786; border-radius: 16px; font-size: 13px; }
+.planner-meal { display: flex; gap: 12px; align-items: center; width: 100%; background: transparent; border: 0; padding: 0; text-align: left; font-size: 15px; line-height: 1.4; }
+.planner-meal img { width: 58px; height: 58px; flex: none; object-fit: cover; border-radius: 16px; }
+.planner-meal-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+.planner-meal-actions button:last-child { margin-left: auto; }
+.nutrition-summary { display: flex; flex-wrap: wrap; gap: 10px 16px; padding-top: 14px; margin-top: 13px; border-top: 1px solid var(--line); }
+.nutrition-summary > div { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 58px; }
+.nutrition-summary > div > span { font-size: 11px; color: var(--muted); }
+.nutrition-summary strong { font-size: 13px; font-weight: 600; }
+.nutrition-summary > p { flex-basis: 100%; margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.planner-week-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 24px 0; }
+.planner-week-footer b { font-size: 13px; }
+.planner-week-footer details { font-size: 12px; margin-top: 8px; }
+.planner-workspace details p { line-height: 1.7; }
+.planner-nutrition-review { padding: 22px; border: 1px solid var(--line); border-radius: 24px; margin-top: 16px; }
+.planner-field { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: 600; margin: 16px 0; min-width: 0; }
+.planner-field small { font-weight: 400; line-height: 1.5; }
+.planner-dialog { width: min(640px, calc(100% - 24px)); max-width: 640px; max-height: min(88dvh, 1000px); border: 1px solid var(--line); border-radius: 26px; padding: 22px; color: var(--ink); background: var(--paper); overscroll-behavior: contain; }
+.planner-dialog::backdrop { background: #183b2a80; backdrop-filter: blur(3px); }
+.planner-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; margin-bottom: 16px; }
+.planner-dialog h2 { font-family: var(--display); font-weight: 500; font-size: 27px; line-height: 1.2; margin: 7px 0 0; }
+.planner-dialog h3 { font-family: var(--display); font-weight: 500; font-size: 20px; }
+.planner-dialog li { font-size: 13px; line-height: 1.7; margin: 6px 0; }
+.planner-dialog > footer, .planner-dialog form > footer { position: sticky; bottom: -22px; padding: 18px 0 6px; margin-top: 18px; border-top: 1px solid var(--line); background: var(--paper); display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.planner-form-row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.planner-form-row > label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; margin: 8px 0; }
+.planner-dialog fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 16px; margin: 20px 0; padding: 14px; }
+.planner-dialog legend { padding: 0 6px; font-size: 14px; font-weight: 600; }
+.planner-checkbox, .planner-checks > label { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 13px; }
+.planner-checkbox input, .planner-checks input, .planner-shopping-row input { appearance: auto; -webkit-appearance: checkbox; width: 20px; height: 20px; accent-color: var(--green); flex: none; }
+.planner-checks { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.planner-picker-list { display: flex; flex-direction: column; gap: 8px; margin: 18px 0; }
+.planner-recipe-choice { display: flex; align-items: center; gap: 12px; width: 100%; border: 1px solid var(--line); border-radius: 16px; padding: 10px; text-align: left; background: var(--surface); }
+.planner-recipe-choice.is-selected { background: var(--soft); border-color: var(--green); }
+.planner-recipe-choice img { width: 52px; height: 52px; flex: none; object-fit: cover; border-radius: 12px; }
+.planner-recipe-choice > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.planner-recipe-choice b { font-size: 13px; line-height: 1.5; }
+.planner-recipe-choice small { font-size: 11px; color: var(--muted); }
+.planner-recipe-preview { padding: 16px; background: var(--soft); border-radius: 18px; }
+.planner-preview-day { padding: 14px 0 18px; border-top: 1px solid var(--line); }
+.planner-preview-meal { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0; }
+.planner-preview-meal > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.planner-preview-meal strong { font-size: 14px; line-height: 1.4; }
+.planner-preview-meal small { font-size: 11px; line-height: 1.6; }
+.planner-suggestion-card { display: flex; gap: 12px; min-width: 0; }
+.planner-suggestion-card > img { width: 64px; height: 64px; flex: none; object-fit: cover; border-radius: 14px; }
+.planner-suggestion-card > div { min-width: 0; }
+.planner-suggestion-card strong { display: block; margin-top: 6px; }
+.planner-suggestion-card p, .planner-suggestion-card a { font-size: 12px; line-height: 1.6; margin: 7px 0; }
+.planner-notes { font-size: 13px; padding: 16px; border-radius: 18px; background: var(--soft); }
+.planner-shopping-row { border-bottom: 1px solid var(--line); padding: 18px 0; }
+.planner-shopping-row > label { display: flex; gap: 14px; align-items: center; }
+.planner-shopping-row > label > span { display: flex; flex-direction: column; gap: 5px; font-size: 14px; line-height: 1.6; }
+.planner-shopping-row .is-checked { text-decoration: line-through; color: var(--muted); }
+.planner-shopping-row details { margin: 10px 0 0 34px; font-size: 12px; color: var(--muted); }
+@media (min-width: 800px) {
+ .planner-workspace { width: 100%; max-width: 1260px; align-self: center; padding: 36px 30px !important; }
+ .planner-days { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (min-width: 1200px) { .planner-days { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media (max-width: 370px) { .planner-workspace { padding-left: 16px; padding-right: 16px; } .planner-dialog { padding: 16px; } .planner-form-row { grid-template-columns: 1fr; } .planner-slots button { flex-basis: 40%; } }

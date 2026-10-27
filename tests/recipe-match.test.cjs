@@ -31,3 +31,8 @@ test('same ingredient in different recipe sections cannot swap quantities',()=>{
 test('close but different decimal quantities are not equal',()=>{
  const b=recipe([['farina','350.0000000001','g'],...base.slice(1)]);assert.equal(matchRecipe(recipe(base),b).matches,false);
 });
+
+test('parts do not match absolute amounts in an original recipe',()=>{
+ const {matchRecipe}=require('../src/lib/extraction/match-recipe.ts');const ingredients=['chocolate','cream','sugar'].map((name,position)=>({name,position,quantity:'1',unit:'part',notes:null}));
+ const a={title:'Ganache',ingredients,steps:[],completeness:'incomplete',missingFields:['instructions']};const b={...a,ingredients:ingredients.map(i=>({...i,unit:'g',quantity:'100'})),steps:[{position:0,instruction:'Mix.'}],completeness:'complete',missingFields:[]};assert.equal(matchRecipe(a,b).matches,false);
+});
