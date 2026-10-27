@@ -100,8 +100,12 @@ const norm = (s: string) =>
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+// Match ordinary singular/plural variants without substring matches (e.g. eggplant).
+function exclusionWords(text: string) {
+ return norm(text).split(' ').map(word => word.endsWith('ies') ? word.slice(0,-3)+'y' : word.endsWith('s') && !word.endsWith('ss') ? word.slice(0,-1) : word).join(' ');
+}
 function contains(text: string, term: string) {
-  return (" " + norm(text) + " ").includes(" " + norm(term) + " ");
+ return (' '+exclusionWords(text)+' ').includes(' '+exclusionWords(term)+' ');
 }
 export function foodFeatures(recipe: Pick<PlannableRecipe, "ingredients">) {
   return {
@@ -152,7 +156,7 @@ export function eligibleRecipe(
   };
   if (
     [...p.excludedIngredients, ...p.dislikedIngredients].some((x) =>
-      (aliases[norm(x)] || [x]).some((t) => contains(text, t)),
+      (aliases[norm(x)] || (exclusionWords(x) === "nut" ? aliases.nuts : [x])).some((t) => contains(text, t)),
     )
   )
     return false;

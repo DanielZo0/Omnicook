@@ -17,3 +17,10 @@ test('dismissing the only sourced suggestion leaves its slot empty and explains 
  const draft=generatePlan(state([suggested],[entry]),{weekStart:'2026-10-19',swap:{plannedFor:'2026-10-19',mealSlot:'dinner'},unlockedIds:[entry.id],dismissed:['new']},'guest');assert.equal(draft.entries.length,0);assert.ok(draft.unmetGoals.some(x=>x.includes('alternative')||x.includes('eligible')));
 });
 
+
+test('hard exclusions reject singular and plural nut ingredients',()=>{
+ const {eligibleRecipe}=require('../src/lib/planner/foods.ts');
+ for(const [excluded,name] of [['peanut','peanuts'],['peanuts','peanut'],['almond','almonds'],['nut','walnuts'],['nuts','walnut']]){
+ assert.equal(eligibleRecipe(recipe('a',{ingredients:[{name}]}),{...defaultPreferences(),excludedIngredients:[excluded]}),false,excluded+' / '+name);
+ }
+});

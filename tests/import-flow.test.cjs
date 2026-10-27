@@ -34,3 +34,26 @@ test('multiple formulas return alternatives without discovery; selecting never c
  const snapshot=JSON.stringify(r);for(let i=0;i<3;i++){const chosen=chooseAlternative(r,'formula-'+i);assert.equal(chosen.draft.ingredients.length,2);assert.equal(chosen.draft.ingredients[0].quantity,['1','1.5','2'][i]);assert.match(chosen.draft.title,new RegExp(r.alternatives[i].label));assert.equal(chosen.alternatives.length,3);}assert.equal(JSON.stringify(r),snapshot);assert.throws(()=>chooseAlternative(r,'no-such-id'));
  const selected=chooseAlternative(r,'formula-1');assert.equal(chooseAlternative(selected,'formula-2').draft.title,'Ganache — White chocolate');
 });
+test('Facebook current reader supplies only summary and preserves unknown amounts and missing method',async()=>{
+ mock.method(dns,'lookup',async()=>[{address:'93.184.215.14',family:4}]);
+ const source='https://www.facebook.com/creator/videos/1112931391428022/';
+ const summary='Two dishes in Greece: Greek salad and phyllo pastry with feta, honey and sesame.';
+ mock.method(global,'fetch',async()=>new Response(`<title>1.5M views and 4.6K reactions</title><meta property="og:description" content="${summary}"><p>Unrelated salad: tomatoes and cucumber.</p>`,{headers:{'Content-Type':'text/html'}}));
+ let calls=0;
+ const r=await importRecipe({source},{name:'groq',extract:async(url,text,options)=>{
+  calls++;assert.equal(url,source);assert.equal(text,summary);assert.equal(options.mode,'import');
+  return {title:'phyllo pastry with feta, honey and sesame',ingredients:['phyllo pastry','feta','honey','sesame'].map((name,position)=>({name,position,quantity:null,unit:null})),steps:[],completeness:'incomplete',missingFields:['instructions']};
+ }});
+ assert.equal(calls,1);assert.equal(r.sourceUrl,source);assert.equal(r.status,'incomplete');assert.deepEqual(r.missingFields,['instructions']);
+ assert.deepEqual(r.draft.ingredients.map(i=>i.name),['phyllo pastry','feta','honey','sesame']);
+ assert.ok(r.draft.ingredients.every(i=>i.quantity===null&&i.unit===null));assert.deepEqual(r.draft.steps,[]);
+ assert.equal(r.alternatives,undefined);assert.equal(r.draft.servings,null);
+});
+test('unmeasured Facebook refusal stays fail-closed without broader repair',async()=>{
+ const {withValidationRepair}=require('../src/lib/extraction/provider.ts');
+ mock.method(dns,'lookup',async()=>[{address:'93.184.215.14',family:4}]);
+ mock.method(global,'fetch',async()=>new Response('<meta property="og:description" content="Two dishes in Greece: Greek salad and phyllo pastry with feta, honey and sesame.">',{headers:{'Content-Type':'text/html'}}));
+ let calls=0;
+ await assert.rejects(importRecipe({source:'https://www.facebook.com/reel/123/'},withValidationRepair({name:'groq',extract:async()=>{calls++;return {error:'insufficient_recipe_content'}}})),/No usable recipe ingredients/);
+ assert.equal(calls,1);
+});

@@ -33,6 +33,7 @@ export function parseSourcePage(html: string, sourceUrl?: string) {
     return [];
   };
   const source = sourceUrl ? new URL(sourceUrl) : null;
+  const facebook = Boolean(source && /(?:^|\.)facebook\.com$/.test(source.hostname));
   const instagram = Boolean(source && /(?:^|\.)instagram\.com$/.test(source.hostname));
   const pinterest = Boolean(source && /(?:^|\.)pinterest\.[a-z.]+$/.test(source.hostname));
   const shortcode = instagram ? source?.pathname.match(/\/(?:p|reels?|tv)\/([^/]+)/)?.[1] : null;
@@ -43,14 +44,14 @@ export function parseSourcePage(html: string, sourceUrl?: string) {
     try { const candidate = new URL(value, source); return candidate.hostname === source.hostname && candidate.pathname.replace(/\/$/, '') === source.pathname.replace(/\/$/, ''); }
     catch { return false; }
   };
-  const primaryObjects = instagram ? objects.filter(obj => Boolean(shortcode) && (obj.shortcode === shortcode || obj.code === shortcode) || matchesPage(obj.url))
+  const primaryObjects = facebook ? [] : instagram ? objects.filter(obj => Boolean(shortcode) && (obj.shortcode === shortcode || obj.code === shortcode) || matchesPage(obj.url))
     : pinterest ? objects.filter(obj => Boolean(pinId) && (obj.id === pinId || obj.entityId === pinId) || matchesPage(obj.url)) : objects;
   const ingredientText = (value: unknown): string => {
     if (typeof value === 'string') return value.trim();
     if (value && typeof value === 'object') { const item = value as Record<string, unknown>; return typeof item.name === 'string' ? [item.value, item.unitText ?? item.unitCode, item.name].filter(part => part != null).join(' ').trim() : ''; }
     return '';
   };
-  const recipeCandidates = (instagram || pinterest ? primaryObjects : objects).filter(obj => [obj['@type']].flat().includes('Recipe')
+  const recipeCandidates = (facebook || instagram || pinterest ? primaryObjects : objects).filter(obj => [obj['@type']].flat().includes('Recipe')
     && Array.isArray(obj.recipeIngredient) && obj.recipeIngredient.some(item => ingredientText(item))
     && instructions(obj.recipeInstructions).length > 0);
   const recipe = recipeCandidates.find(obj => matchesPage(obj.url) || matchesPage(obj.mainEntityOfPage))
@@ -83,5 +84,5 @@ export function parseSourcePage(html: string, sourceUrl?: string) {
     if(!query)return [];const hidden:Record<string,string>={};for(const i of inputs)if(i.type==='hidden'&&i.name)hidden[i.name]=i.value||'';
     return [{action:f.action||sourceUrl||'',queryName:query.name,hidden}];
   });
-  return {links,searchForms,structuredText, caption: [...new Set(captions)].join('\n\n'), title: meta['og:title'] || decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || ''), description: meta['og:description'] || meta.description || meta['twitter:description'] || '', image: image(recipe?.image) || meta['og:image'] || meta['twitter:image'] || '', body, destinations};
+  return {links,searchForms,structuredText, caption: [...new Set(captions)].join('\n\n'), title: meta['og:title'] || decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || ''), description: meta['og:description'] || meta.description || (!facebook ? meta['twitter:description'] : '') || '', image: image(recipe?.image) || meta['og:image'] || meta['twitter:image'] || '', body, destinations};
 }

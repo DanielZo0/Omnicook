@@ -52,7 +52,7 @@ export default function LoginPage() {
   }
 
   return <main className="login-screen">
-    <div className="login-brand"><KitchenIcon name="book" size={28} />omnicook<span aria-hidden="true">✿</span></div>
+    <div className="login-brand"><img src="/omnicook-mark.svg" width={46} height={46} alt="" /><span>omnicook.</span></div>
     <p className="login-intro">Private recipe vault</p>
     <h1>{mode === 'sign-in' ? 'Sign in to Omnicook.' : 'Create your account.'}</h1>
 
