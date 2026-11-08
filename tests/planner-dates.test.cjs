@@ -1,6 +1,6 @@
 require('./register-ts.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const {calendarDate,weekDates,shiftWeek}=require('../src/lib/planner/dates.ts');
+const {calendarDate,weekDates,shiftWeek,visibleWeekDates}=require('../src/lib/planner/dates.ts');
 test('planner validates real dates and handles leap and year boundaries',()=>{
  assert.equal(calendarDate('2024-02-29'),'2024-02-29');
  for(const x of ['0000-01-01','2025-02-29','2026-04-31','2026-13-01','2026-1-01'])assert.throws(()=>calendarDate(x));
@@ -11,4 +11,21 @@ test('calendar results are timezone-independent and Monday anchored',()=>{
  const old=process.env.TZ;
  for(const tz of ['Pacific/Auckland','America/Los_Angeles','Europe/Malta']){process.env.TZ=tz;assert.equal(weekDates('2026-10-25')[0],'2026-10-19');}
  process.env.TZ=old;
+});
+
+test('current-week view starts today, including Monday and Sunday boundaries',()=>{
+ assert.deepEqual(visibleWeekDates('2026-11-02','2026-11-03'),['2026-11-03','2026-11-04','2026-11-05','2026-11-06','2026-11-07','2026-11-08']);
+ assert.deepEqual(visibleWeekDates('2026-11-02','2026-11-02'),weekDates('2026-11-02'));
+ assert.deepEqual(visibleWeekDates('2026-11-02','2026-11-08'),['2026-11-08']);
+});
+
+test('earlier-days control restores the complete week; other weeks are never trimmed',()=>{
+ assert.deepEqual(visibleWeekDates('2026-11-02','2026-11-03',true),weekDates('2026-11-02'));
+ assert.deepEqual(visibleWeekDates('2026-10-26','2026-11-03'),weekDates('2026-10-26'));
+ assert.deepEqual(visibleWeekDates('2026-11-09','2026-11-03'),weekDates('2026-11-09'));
+});
+
+test('remaining days cross the year boundary and reject invalid today values',()=>{
+ assert.deepEqual(visibleWeekDates('2026-12-28','2027-01-01'),['2027-01-01','2027-01-02','2027-01-03']);
+ assert.throws(()=>visibleWeekDates('2026-11-02','2026-11-31'));
 });

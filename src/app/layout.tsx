@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './styles.css';
+import './social.css';
 
 export const metadata: Metadata = {
   title: 'Omnicook',

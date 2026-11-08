@@ -30,10 +30,15 @@ import { readDraft, writeDraft, clearDraft, draftOwnerKey, type StoredDraft, typ
 import { RecipeEditor } from '@/components/recipes/RecipeEditor';
 import { DraftRecovery } from '@/components/recipes/DraftRecovery';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import {EmailVerification} from '@/components/social/EmailVerification';
+import {KitchenAwake} from '@/components/social/KitchenAwake';
+import {Community} from '@/components/social/Community';
+import {RecipeSharingSummary} from '@/components/social/RecipeSharingSummary';
+import {SharingDialog} from '@/components/social/SharingDialog';
 import { Planner } from '@/components/planner/Planner';
 import {safeSourceLink} from '@/lib/recipes/source-links';
 type ReviewState={draft:EditableRecipeDraft;sourceUrl:string|null;imageUrl:string|null;originalRecipeUrl?:string|null;status?:'complete'|'incomplete';missingFields?:('ingredients'|'instructions')[];message?:string;completionConfirmed?:boolean;alternatives?:FormulaAlternative[];selectedAlternativeId?:string|null;alternativeBaseTitle?:string};
-type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile';
+type Screen = 'onboarding' | 'vault' | 'search' | 'import' | 'extracting' | 'review' | 'edit' | 'detail' | 'cook' | 'planner' | 'grocery' | 'profile' | 'community';
 type Layout = 'grid' | 'feed' | 'editorial';
 
 const INK = '#28563d', GREEN = '#28563d', LIME = '#f9d94e', CORAL = '#28563d', PAPER = '#fffdf2', CARD = '#fffef8', LINE = '#e2e5cd', MUTED = '#526447';
@@ -62,12 +67,19 @@ export default function Home() {
 
   const [bootChecked, setBootChecked] = useState(false);
   const [screen, setScreen] = useState<Screen>('vault');
+  const [sharingRecipe,setSharingRecipe]=useState<{id:string;title:string}|null>(null);
+  const [ownFeed,setOwnFeed]=useState(false);
+  const [communityCooking,setCommunityCooking]=useState(false);
+  const [plannerVisited,setPlannerVisited]=useState(false);
+  useEffect(()=>{if(screen==='planner'||screen==='grocery')setPlannerVisited(true);},[screen]);
   const [planningRecipeId,setPlanningRecipeId]=useState<string|null>(null);
   const [layout, setLayout] = useState<Layout>('grid');
   const [filter, setFilter] = useState('All recipes');
   const [query, setQuery] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [servings, setServings] = useState(1);
+  const [checkedIngredients,setCheckedIngredients]=useState<number[]>([]);
+  useEffect(()=>setCheckedIngredients([]),[activeId]);
   const [cookStep, setCookStep] = useState(0);
   const [chefQuestion, setChefQuestion] = useState('');
   const [chefReply, setChefReply] = useState('');
@@ -113,7 +125,7 @@ export default function Home() {
   useEffect(()=>{
     if(sessionLoading)return;
     liveStamp.current.revision++;liveStamp.current.requestId++;
-    setReviewDraft(null);setReplacement(null);setPendingLeave(null);reviewOwner.current=ownerKey;
+    setSharingRecipe(null);setReviewDraft(null);setReplacement(null);setPendingLeave(null);reviewOwner.current=ownerKey;
     setEditRecipeId(null);setSelectedCollectionId(null);setSource('');setStatus(null);setResolvingOriginal(false);setImporting(false);setScreen(current=>screenAfterDraftOwnerChange(current));reviewOwner.current='';
     try{setRecovery(readDraft(window.localStorage,owner,Date.now())||(owner.kind==='user'?readDraft(window.localStorage,{kind:'guest'},Date.now()):null));}
     catch{setStorageWarning('This draft cannot survive closing the page because device storage is unavailable.');}
@@ -157,6 +169,8 @@ export default function Home() {
     else { setVaultRecipes([]); setMealPlan([]); setCollectionsState([]); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn,ownerKey]);
+
+  useEffect(()=>{if(!signedIn||!vaultRecipes.length)return;const id=new URLSearchParams(window.location.search).get('recipe');if(id&&vaultRecipes.some(r=>r.id===id)){setActiveId(id);setScreen('detail');window.history.replaceState(null,'','/');}},[signedIn,vaultRecipes]);
 
   useEffect(() => () => { if (extractTimer.current) clearInterval(extractTimer.current); }, []);
 
@@ -471,11 +485,12 @@ export default function Home() {
 
   if (!bootChecked) return <div style={s(`min-height:100svh;min-height:100dvh;background:${PAPER}`)} />;
 
-  const showTabs = (['vault', 'search', 'planner', 'grocery', 'profile'] as Screen[]).includes(screen);
-  const showSidebar = !(['onboarding', 'cook'] as Screen[]).includes(screen);
+  const showTabs = !communityCooking && (['vault', 'search', 'planner', 'grocery', 'profile', 'community'] as Screen[]).includes(screen);
+  const showSidebar = !communityCooking && !(['onboarding', 'cook'] as Screen[]).includes(screen);
   const featured = recipes.find(r => r.img) ?? recipes[0];
   const navigation: { label: string; icon: KitchenIconName; screen: Screen }[] = [
     { label: 'Cookbook', icon: 'book', screen: 'vault' },
+    { label: 'Community', icon: 'user', screen: 'community' },
     { label: 'Meal plan', icon: 'calendar', screen: 'planner' },
     { label: 'Shopping list', icon: 'basket', screen: 'grocery' },
   ];
@@ -494,6 +509,7 @@ export default function Home() {
       <button className={`sidebar-profile ${screen === 'profile' ? 'is-active' : ''}`} onClick={() => go('profile')}><span className="avatar"><KitchenIcon name="user" size={18} /></span><span><b>My kitchen</b><small>{signedIn ? 'Account & collections' : 'Explore Omnicook'}</small></span><KitchenIcon name="chevron" size={15} /></button>
     </aside>}
     <div className="app-content">
+    {screen === 'community' && <Community onCookingChange={setCommunityCooking} key={ownerKey} signedIn={signedIn} initialProfile={ownFeed} onAccount={()=>go('profile')} onSaved={async id=>{const stamp=ownerKey;if(stamp!==liveStamp.current.ownerKey)return;await refreshVault();if(stamp!==liveStamp.current.ownerKey)return;setActiveId(id);setScreen('detail');}}/>}
     {screen === 'onboarding' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:${TOP_SAFE} 26px calc(env(safe-area-inset-bottom,0px) + 32px);box-sizing:border-box;background:${GREEN};color:#fffef8`)}>
       <div className="onboarding-brand"><img src="/omnicook-mark.svg" width={44} height={44} alt="" /><span>omnicook.</span></div>
       <div style={s('flex:1;display:flex;flex-direction:column;justify-content:center;gap:26px')}>
@@ -672,6 +688,7 @@ export default function Home() {
 
     {screen === 'detail' && active && <div className="recipe-detail" style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
       <div className="detail-scroll" style={s(`flex:1;${SCROLL}`)}>
+        {signedIn&&<div className="social-share-control"><button onClick={()=>setSharingRecipe({id:active.id,title:active.t})}>Share recipe ↗</button><RecipeSharingSummary key={String(!!sharingRecipe)+active.id} recipeId={active.id}/></div>}
         {safeSourceLink(active.originalRecipeUrl)&&<p style={{margin:'12px 20px'}}><a href={safeSourceLink(active.originalRecipeUrl)!} target="_blank" rel="noopener noreferrer">Full recipe</a></p>}
 
         <div className="detail-hero"><RecipeImage src={active.img ?? undefined} alt={active.t} /><div className="detail-toolbar"><button className="round-button" onClick={() => go('vault')} aria-label="Back to cookbook"><KitchenIcon name="arrow" style={{transform:'rotate(180deg)'}} /></button>{signedIn && <div><button className="round-button" onClick={openEditRecipe} aria-label="Edit recipe"><KitchenIcon name="edit" size={19} /></button><button className="round-button" onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe"><KitchenIcon name="trash" size={19} /></button></div>}</div></div>
@@ -709,10 +726,11 @@ export default function Home() {
             </div>
           </div>
           <div style={s('margin-top:10px')}>
-            {active.a.map((ingredient) => <div key={ingredient.name} style={s(`display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid ${LINE};font-size:13.5px`)}>
+            {active.a.map((ingredient,index) => <label className="kitchen-ingredient" key={index} style={s(`display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid ${LINE};font-size:13.5px`)}>
+              <input type="checkbox" aria-label={`Check ${ingredient.name}`} checked={checkedIngredients.includes(index)} onChange={e=>setCheckedIngredients(e.target.checked?[...checkedIngredients,index]:checkedIngredients.filter(n=>n!==index))}/>
               <b style={s(`display:inline-block;width:62px;color:${CORAL};font-size:13px`)}>{scaleAmount(ingredient.amt, servings)}</b>
-              <span>{ingredient.name}</span>
-            </div>)}
+              <span className={checkedIngredients.includes(index)?'is-checked':''}>{ingredient.name}</span>
+            </label>)}
           </div>
         </section>
         <section className="method-panel" style={s('padding:22px 20px 0')}>
@@ -737,6 +755,7 @@ export default function Home() {
     </div>}
 
     {screen === 'cook' && active && <div className="cooking-screen" style={s('flex:1;display:flex;flex-direction:column;min-height:0;background:#fffef8')}>
+      <KitchenAwake key={active.id}/>
       <div style={s('padding:calc(env(safe-area-inset-top,0px) + 20px) 22px 0')}>
         <div style={s('display:flex;align-items:center;justify-content:space-between')}>
           <button aria-label="Close cooking mode" onClick={() => go('detail')} style={s(`width:44px;height:44px;border:1px solid ${LINE};border-radius:50%;background:${PAPER};font-size:16px`)}>✕</button>
@@ -765,7 +784,7 @@ export default function Home() {
       </div>
     </div>}
 
-    {(screen === 'planner' || screen === 'grocery') && <Planner key={ownerKey} ownerKey={ownerKey} signedIn={signedIn} recipes={recipes} mode={screen==='planner'?'planner':'shopping'} initialRecipeId={planningRecipeId} onConsumeRecipe={()=>setPlanningRecipeId(null)} onOpenRecipe={openRecipe} onMode={mode=>go(mode==='planner'?'planner':'grocery')} onCookbookChanged={refreshVault} />}
+    {plannerVisited && <div className="planner-preserved" hidden={screen!=='planner'&&screen!=='grocery'}><Planner compactCurrentWeek key={ownerKey} ownerKey={ownerKey} signedIn={signedIn} recipes={recipes} mode={screen==='planner'?'planner':'shopping'} initialRecipeId={planningRecipeId} onConsumeRecipe={()=>setPlanningRecipeId(null)} onOpenRecipe={openRecipe} onMode={mode=>go(mode==='planner'?'planner':'grocery')} onCookbookChanged={refreshVault} /></div>}
 
     {screen === 'profile' && <div className="utility-screen profile-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE}`)}>
       {!signedIn ? <div style={s('padding:20px')}>
@@ -780,6 +799,7 @@ export default function Home() {
             <span style={s(`font-size:12px;color:${MUTED}`)}>{collections.length} collections</span>
           </span>
         </div>
+        <EmailVerification key={ownerKey} email={user?.email||null}/>
         <div style={s('display:flex;gap:10px;padding:18px 20px 0')}>
           {[{ v: recipes.length, k: 'recipes saved' }, { v: collections.length, k: 'collections' }, { v: mealPlan.length, k: 'meals planned' }].map((stat) => <div key={stat.k} style={s(`flex:1;padding:14px 12px;border:1px solid ${LINE};border-radius:15px;background:${CARD}`)}>
             <div style={s("font-family:var(--display);font-weight:700;font-size:24px")}>{stat.v}</div>
@@ -796,6 +816,7 @@ export default function Home() {
           </div>
         </>}
         <div style={s(`margin:22px 20px 0;border:1px solid ${LINE};border-radius:17px;background:${CARD};overflow:hidden`)}>
+          {signedIn&&<button className="outline-button" onClick={()=>{setOwnFeed(true);go('community');}}>View my public profile</button>}
           {[{ glyph: '◉', label: 'Recipe storage', value: 'Private cookbook' }, { glyph: '✦', label: 'Cooking help', value: 'AI sous-chef' }, { glyph: '▣', label: 'Units', value: 'Metric' }, { glyph: '◌', label: 'Notifications', value: 'Coming soon' }].map((row) => <div key={row.label} style={s(`display:flex;align-items:center;justify-content:space-between;padding:15px;border-bottom:1px solid ${LINE};font-size:13.5px`)}>
             <span style={s('display:flex;align-items:center;gap:11px')}><span style={s(`color:${MUTED}`)}>{row.glyph}</span>{row.label}</span>
             <span style={s(`font-size:12px;color:${MUTED}`)}>{row.value}</span>
@@ -807,12 +828,13 @@ export default function Home() {
     {showTabs && <div className="navigation-ad"><BannerAd unit={GAM_BANNER_TABBAR_UNIT} sizes={[[320, 50]]} height={50} /></div>}
     {showTabs && <nav className="bottom-navigation" aria-label="Main navigation">
       <button aria-current={screen === 'vault' || screen === 'search' ? 'page' : undefined} onClick={() => { pickFilter('All recipes'); go('vault'); }}><KitchenIcon name="book" /><span>Cookbook</span></button>
-      <button aria-current={screen === 'planner' ? 'page' : undefined} onClick={() => go('planner')}><KitchenIcon name="calendar" /><span>Plan</span></button>
+      <button aria-current={screen === 'community' ? 'page' : undefined} onClick={() => {setOwnFeed(false);go('community');}}><KitchenIcon name="user" /><span>Community</span></button>
       <button className="nav-add" aria-label="Add a recipe" onClick={() => go('import')}><span><KitchenIcon name="plus" size={26} /></span><small>Add recipe</small></button>
+      <button aria-current={screen === 'planner' ? 'page' : undefined} onClick={() => go('planner')}><KitchenIcon name="calendar" /><span>Plan</span></button>
       <button aria-current={screen === 'grocery' ? 'page' : undefined} onClick={() => go('grocery')}><KitchenIcon name="basket" /><span>Shop</span></button>
-      <button aria-current={screen === 'profile' ? 'page' : undefined} onClick={() => go('profile')}><KitchenIcon name="user" /><span>My kitchen</span></button>
     </nav>}
     </div>
+    {sharingRecipe&&<SharingDialog key={ownerKey+sharingRecipe.id} recipeId={sharingRecipe.id} title={sharingRecipe.title} onClose={()=>setSharingRecipe(null)}/>}
     {recovery&&<DraftRecovery onDismiss={()=>setRecovery(null)} title={recovery.draft.title} onRecover={recoverDraft} onDiscard={()=>{try{clearDraft(window.localStorage,recovery.owner);}catch{}setRecovery(null);}}/>}
     {pendingLeave&&<ConfirmDialog title="Discard your unsaved draft?" onCancel={()=>setPendingLeave(null)} onConfirm={()=>{const next=pendingLeave;clearStoredReview();changeReview(null);setPendingLeave(null);go(next,true);}}><p>Your unsaved changes will be removed.</p></ConfirmDialog>}
     {replacement&&<ConfirmDialog title="Replace with this recipe?" confirmLabel="Replace recipe" onCancel={()=>setReplacement(null)} onConfirm={()=>{changeReview(replacement);setReplacement(null);}}><p>{replacement.draft.title}</p><p>{replacement.draft.ingredients.map(i=>[i.quantity,i.unit,i.name].filter(Boolean).join(' ')).join('; ')}</p><p>This differs from the caption. Replacing uses this page’s quantities and method.</p></ConfirmDialog>}

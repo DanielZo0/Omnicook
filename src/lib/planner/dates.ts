@@ -24,6 +24,12 @@ export function weekDates(value: string): string[] {
 export function shiftWeek(start: string, offset: number): string {
   return addDays(weekDates(start)[0], offset * 7);
 }
+/** Presentation only: callers keep the complete stored plan and shopping list. */
+export function visibleWeekDates(start: string, today: string, showEarlier = false): string[] {
+  const dates = weekDates(start);
+  calendarDate(today);
+  return showEarlier || !dates.includes(today) ? dates : dates.filter(date => date >= today);
+}
 export function dateLabel(
   value: string,
   options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" },

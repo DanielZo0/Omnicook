@@ -80,6 +80,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } : {})}).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
 
   if (draft) {
+    // Preserve suggestions as history when original ingredient IDs are replaced.
+    if(process.env.SOCIAL_ENABLED==='true') await tx.execute(sql`UPDATE social_alternatives SET stale=true WHERE recipe_id=${id}::uuid`);
     await tx.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, id));
     await tx.insert(recipeIngredients).values(draft.ingredients.map((ingredient) => ({
       recipeId: id,
