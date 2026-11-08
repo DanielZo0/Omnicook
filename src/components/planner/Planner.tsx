@@ -16,6 +16,7 @@ import {
   localToday,
   shiftWeek,
   weekDates,
+  visibleWeekDates,
 } from "@/lib/planner/dates";
 import { mobileToPlannable } from "@/lib/planner/mobile";
 import { generatePlan } from "@/lib/planner/generate";
@@ -42,6 +43,7 @@ type Props = {
   onOpenRecipe: (id: string) => void;
   onMode: (mode: "planner" | "shopping") => void;
   onCookbookChanged: () => void;
+  compactCurrentWeek?: boolean;
 };
 export function Planner({
   ownerKey,
@@ -53,7 +55,15 @@ export function Planner({
   onOpenRecipe,
   onMode,
   onCookbookChanged,
+  compactCurrentWeek = false,
 }: Props) {
+  const [today, setToday] = useState(localToday);
+  const [showEarlier, setShowEarlier] = useState(false);
+  useEffect(() => {
+    if (!compactCurrentWeek) return;
+    const timer = setInterval(() => setToday(localToday()), 60000);
+    return () => clearInterval(timer);
+  }, [compactCurrentWeek]);
   const [week, setWeek] = useState(() => weekDates(localToday())[0]),
     [slot, setSlot] = useState<MealSlot>("dinner"),
     [state, setState] = useState<PlannerState | null>(null),
@@ -156,9 +166,14 @@ export function Planner({
       onConsumeRecipe();
     }
   }, [initialRecipeId, state]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setShowEarlier(false), [week, ownerKey]);
   const dates = weekDates(week),
     entries = state?.entries || [],
     activeRecipes = state?.recipes || mobileRecipes;
+  const isCurrentWeek = dates.includes(today);
+  const visibleDates = compactCurrentWeek ? visibleWeekDates(week, today, showEarlier) : dates;
+  const hiddenEarlierCount = isCurrentWeek ? dates.filter(date => date < today).length : 0;
+  const rangeStart = compactCurrentWeek && mode === 'planner' ? visibleDates[0] : week;
   const shopping = useMemo(() => buildShoppingList(entries), [entries]);
   const plantFoods = [
     ...new Set(
@@ -360,11 +375,12 @@ export function Planner({
           </div>
           <button
             className="outline-button"
+            aria-label="Preferences"
             disabled={!state || pending}
             onClick={() => setSettings(true)}
           >
             <KitchenIcon name="user" size={16} />
-            Preferences
+            <span className="planner-preferences-label">Preferences</span>
           </button>
         </div>
       </header>
@@ -379,20 +395,20 @@ export function Planner({
         </button>
         <div>
           <strong>
-            {dateLabel(week)} –{" "}
+            {dateLabel(rangeStart)} –{" "}
             {dateLabel(addDays(week, 6), {
               month: "short",
               day: "numeric",
               year: "numeric",
             })}
           </strong>
-          <button
+          {(!compactCurrentWeek || !isCurrentWeek) && <button
             className="planner-text-button"
             disabled={pending}
             onClick={() => setWeek(weekDates(localToday())[0])}
           >
             This week
-          </button>
+          </button>}
         </div>
         <button
           className="planner-icon-button"
@@ -403,6 +419,14 @@ export function Planner({
           ›
         </button>
       </div>
+      {compactCurrentWeek && mode === 'planner' && isCurrentWeek && hiddenEarlierCount > 0 && (
+        <div className="planner-range-summary">
+          <span>{showEarlier ? 'Full week' : 'Today onwards'} · {visibleDates.length} {visibleDates.length === 1 ? 'day' : 'days'}</span>
+          <button className="planner-text-button" aria-expanded={showEarlier} onClick={() => setShowEarlier(value => !value)}>
+            {showEarlier ? 'Hide earlier days' : 'Show earlier days'}
+          </button>
+        </div>
+      )}
       {!signedIn && (
         <p className="planner-notice">
           Preview only. Changes are temporary.{" "}
@@ -447,7 +471,7 @@ export function Planner({
                 disabled={pending || loading}
                 onClick={() => generate()}
               >
-                {pending ? "Working…" : "Generate week"}
+                {pending ? "Working…" : compactCurrentWeek && visibleDates.length < 7 ? "Generate full week" : "Generate week"}
               </button>
             </div>
             {sourceMode === "suggestions" &&
@@ -470,7 +494,7 @@ export function Planner({
             ))}
           </div>
           <div className="planner-days">
-            {dates.map((date) => {
+            {visibleDates.map((date) => {
               const entry = entries.find(
                 (e) => e.plannedFor === date && e.mealSlot === slot,
               );

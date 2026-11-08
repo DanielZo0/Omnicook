@@ -3,6 +3,12 @@ import { z } from 'zod';
 export function normalizeImageUrl(value: unknown, base?: string): string | null {
   if (typeof value !== 'string' || !value.trim() || value.length > 4096) return null;
   if (/^\/api\/recipes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/photo(?:\?v=\d+)?$/i.test(value)) return value;
+  if (/^\/api\/shared\/[\w-]{43}\/photo$/.test(value)) return value;
+  if (/^\/api\/social\/photo\?recipeId=[0-9a-f-]{36}&cookbookId=[0-9a-f-]{36}$/i.test(value)) {
+    const q=new URLSearchParams(value.split('?')[1]);
+    if ([q.get('recipeId'),q.get('cookbookId')].every(id=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id||''))) return value;
+  }
+  if (/^\/api\/social\/(?:activity|reports)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/photo$/i.test(value)) return value;
   try {
     const url = new URL(value.trim(), base);
     const host = url.hostname.toLowerCase();

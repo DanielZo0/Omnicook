@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { authClient, AUTH_CONFIGURED } from '@/lib/auth/client';
 import { useSession } from '@/lib/auth/session';
+import {returnPath} from '@/lib/auth/return-path';
 import { s } from '@/lib/mobile/style';
 import { KitchenIcon } from '@/components/KitchenIcon';
 
@@ -16,7 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!sessionLoading && user) window.location.replace('/');
+    if (!sessionLoading && user) window.location.replace(returnPath(new URLSearchParams(window.location.search).get('next')));
   }, [sessionLoading, user]);
 
   async function submit(event: FormEvent) {
@@ -42,7 +43,7 @@ export default function LoginPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const { error } = await authClient().signIn.social({ provider: 'google', callbackURL: `${window.location.origin}/` });
+      const { error } = await authClient().signIn.social({ provider: 'google', callbackURL: `${window.location.origin}${returnPath(new URLSearchParams(window.location.search).get('next'))}` });
       if (error) { setMessage(error.message ?? 'Could not start Google sign-in.'); setLoading(false); }
       // On success this redirects the browser to Google, so no further state change here.
     } catch {

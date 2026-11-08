@@ -14,7 +14,9 @@
     "db:recipe-photos": "node scripts/migrate-recipe-photos.mjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:recipe-provenance": "node scripts/migrate-recipe-provenance.mjs"
+    "db:recipe-provenance": "node scripts/migrate-recipe-provenance.mjs",
+    "test:social": "node --conditions=react-server tests/social-integration.cjs",
+    "test:social:http": "node scripts/social-http-integration.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
