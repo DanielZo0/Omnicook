@@ -62,6 +62,11 @@ const seg = (on: boolean) => (on ? { bg: GREEN, fg: '#fff' } : { bg: 'transparen
 
 export default function Home() {
   const configured = AUTH_CONFIGURED;
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('error') === 'account_not_linked') {
+      window.location.replace('/login?error=account_not_linked');
+    }
+  }, []);
   const { user, loading: sessionLoading } = useSession();
   const signedIn = configured && !sessionLoading && Boolean(user);
 
