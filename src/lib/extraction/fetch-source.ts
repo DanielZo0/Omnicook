@@ -4,6 +4,10 @@ import { isIP } from 'node:net';
 import { Agent } from 'undici';
 import { normalizeImageUrl } from '../image-url';
 import { parseSourcePage } from './source-page';
+import {
+  instagramPostShortcode, isInstagramImageUrl, selectCarouselSlide,
+  type CarouselImage, type CarouselTranscriber, type CarouselTranscript,
+} from './instagram-carousel';
 import { extractYoutubeVideoId, fetchYoutubeDescription } from './youtube';
 
 const MAX_TEXT_CHARS = 10000;
@@ -26,6 +30,60 @@ export async function publicUrl(value: string) {
   if (!addresses.length || addresses.some(item => !isPublicAddress(item.address))) throw new SourceReadError('Only public recipe addresses can be imported.');
   return {url, addresses};
 }
+function pinnedDispatcher(addresses: Awaited<ReturnType<typeof publicUrl>>['addresses']) {
+  return new Agent({connect: {autoSelectFamily: true, lookup: (_host, options, callback) => {
+    if (options.all) callback(null, addresses);
+    else callback(null, addresses[0].address, addresses[0].family);
+  }}});
+}
+
+export async function fetchCarouselImage(value: string, signal: AbortSignal): Promise<CarouselImage> {
+  if (!isInstagramImageUrl(value)) throw new SourceReadError('Invalid Instagram slide image address.');
+  const { url, addresses } = await publicUrl(value);
+  signal.throwIfAborted();
+  const dispatcher = pinnedDispatcher(addresses);
+  try {
+    const init: RequestInit & { dispatcher: Agent } = { signal, dispatcher, redirect: 'manual' };
+    const response = await fetch(url.href, init);
+    const mimeType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+    const limit = 2_000_000;
+    if (!response.ok || (mimeType !== 'image/jpeg' && mimeType !== 'image/png' && mimeType !== 'image/webp')
+      || Number(response.headers.get('content-length')) > limit || !response.body) {
+      await response.body?.cancel();
+      throw new SourceReadError('The Instagram slide image is unavailable.');
+    }
+    const reader = response.body.getReader();
+    const cancel = () => { void reader.cancel().catch(() => {}); };
+    signal.addEventListener('abort', cancel, { once: true });
+    let size = 0;
+    const chunks: Uint8Array[] = [];
+    try {
+      signal.throwIfAborted();
+      for (;;) {
+        const chunk = await reader.read();
+        signal.throwIfAborted();
+        if (chunk.done) break;
+        size += chunk.value.byteLength;
+        if (size > limit) throw new SourceReadError('The Instagram slide image is too large.');
+        chunks.push(chunk.value);
+      }
+    } finally {
+      signal.removeEventListener('abort', cancel);
+      await reader.cancel().catch(() => {});
+    }
+    if (!size) throw new SourceReadError('The Instagram slide image is empty.');
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { bytes, mimeType };
+  } finally {
+    await dispatcher.close();
+  }
+}
+
 export async function fetchSourcePage(value: string, signal: AbortSignal, onRequest?:()=>void, allowedOrigin?:(url:URL)=>boolean) {
   let current = value;
   for (let redirects = 0; redirects <= 5; redirects++) {
@@ -34,10 +92,7 @@ export async function fetchSourcePage(value: string, signal: AbortSignal, onRequ
     const {url, addresses} = await publicUrl(current);
     // Pin this request to the validated DNS answers, so a second DNS lookup
     // cannot rebind the hostname to a private destination after validation.
-    const dispatcher = new Agent({connect: {autoSelectFamily: true, lookup: (_host, options, callback) => {
-      if (options.all) callback(null, addresses);
-      else callback(null, addresses[0].address, addresses[0].family);
-    }}});
+    const dispatcher = pinnedDispatcher(addresses);
     try {
       const init: RequestInit & {dispatcher: Agent} = {signal, dispatcher, redirect: 'manual', headers: {'User-Agent': 'Mozilla/5.0 (compatible; OmnicookBot/0.2)', Accept: 'text/html,application/xhtml+xml'}};
       const response = await fetch(url.href, init);
@@ -127,8 +182,19 @@ export async function resolveSource(source: string): Promise<ExtractedSource> {
   } finally { clearTimeout(timer); }
 }
 
-export type SourceDocument={sourceUrl:string|null;imageUrl:string|null;text:string;page:ReturnType<typeof parseSourcePage>|null;originalRecipeUrl?:string|null};
-export async function readSource(source:string,budget:ImportBudget):Promise<SourceDocument>{
+export const INSTAGRAM_SLIDE_UNREADABLE = 'Omnicook could not read the selected Instagram slide. Paste the text from the slide or the original recipe link.';
+const INSTAGRAM_SLIDE_REQUIRED = 'This Instagram post has multiple slides. Paste the link to the recipe slide or copy the text from the slide.';
+
+export type SourceDocument = {
+  sourceUrl: string | null;
+  imageUrl: string | null;
+  text: string;
+  page: ReturnType<typeof parseSourcePage> | null;
+  originalRecipeUrl?: string | null;
+  carouselEvidence?: { index: number; transcript: CarouselTranscript };
+};
+
+export async function readSource(source:string,budget:ImportBudget,transcribeCarousel?:CarouselTranscriber):Promise<SourceDocument>{
  const input=source.trim();
  if(!/^https?:\/\//i.test(input))return {sourceUrl:null,imageUrl:null,text:input.slice(0,10000),page:null};
  if(extractYoutubeVideoId(input)){const result=await budget.runSource(()=>resolveSource(input));return {...result,page:null};}
@@ -144,6 +210,32 @@ export async function readSource(source:string,budget:ImportBudget):Promise<Sour
  }
  const page=selected.page,isSocial=socialHost(new URL(selected.url).hostname);
  const text=/(?:^|\.)facebook\.com$/.test(new URL(selected.url).hostname)?facebookPostText(page.description):page.structuredText||(isSocial?(page.caption||page.description):[page.title,page.description,page.body].filter(Boolean).join('\n\n'));
- if(!text.trim()||(isSocial&&text.length<60))throw new SourceReadError('This post cannot be read. Paste its full caption or original recipe link.');
+ if (!text.trim() || (isSocial && text.length < 60)) {
+  const carousel = page.instagramCarousel;
+  const inputUrl = new URL(input);
+  if (!carousel || instagramPostShortcode(inputUrl) !== carousel.shortcode) {
+   throw new SourceReadError('This post cannot be read. Paste its full caption or original recipe link.');
+  }
+  const slide = selectCarouselSlide(inputUrl, carousel);
+  if (!slide) throw new SourceReadError(INSTAGRAM_SLIDE_REQUIRED);
+  if (!transcribeCarousel) throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+  try {
+   const image = await budget.runSource(signal => {
+    budget.takeAdditionalRequest();
+    return fetchCarouselImage(slide.url, signal);
+   });
+   const transcript = await budget.runAI(timeoutMs => transcribeCarousel(image, Math.min(timeoutMs, 10_000)));
+   if (!transcript.text.trim()) throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+   return {
+    sourceUrl: slide.sourceUrl,
+    imageUrl: null,
+    text: transcript.text,
+    page: null,
+    carouselEvidence: { index: slide.index, transcript },
+   };
+  } catch {
+   throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+  }
+ }
  return {sourceUrl:result.url,imageUrl:normalizeImageUrl(page.image,selected.url),text:text.slice(0,10000),page,originalRecipeUrl:selected!==result?selected.url:null};
 }

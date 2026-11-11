@@ -1,3 +1,5 @@
+import { instagramPostShortcode, parseInstagramCarousel } from './instagram-carousel';
+
 export function decodeEntities(text: string): string {
   return text.replace(/&#(x[0-9a-f]+|\d+);/gi, (original, code) => {
     const point = code[0].toLowerCase() === 'x' ? parseInt(code.slice(1), 16) : Number(code);
@@ -73,6 +75,8 @@ export function parseSourcePage(html: string, sourceUrl?: string) {
     if (obj.sharedContent && typeof obj.sharedContent === 'object' && typeof (obj.sharedContent as Record<string, unknown>).url === 'string') return [(obj.sharedContent as {url: string}).url];
     return [];
   }));
+  const postShortcode = source ? instagramPostShortcode(source) : null;
+  const instagramCarousel = postShortcode ? parseInstagramCarousel(postShortcode, primaryObjects) : null;
   const author = typeof recipe?.author === 'string' ? recipe.author : recipe?.author && typeof recipe.author === 'object' ? String((recipe.author as Record<string, unknown>).name || '') : '';
   const structuredText = recipe ? [`Recipe: ${String(recipe.name || '')}`, `Creator: ${author}`, `Servings: ${String(recipe.recipeYield || '')}`, `Prep time: ${String(recipe.prepTime || '')}; Cook time: ${String(recipe.cookTime || '')}`, 'Ingredients:', ...(recipe.recipeIngredient as unknown[]).map(ingredientText).filter(Boolean), 'Method:', ...instructions(recipe.recipeInstructions)].join('\n') : '';
   const body = decodeEntities(html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<!--[\s\S]*?-->/g, ' ').replace(/<\/(?:p|div|li|h[1-6])>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ')).replace(/[^\S\n]+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
@@ -84,5 +88,5 @@ export function parseSourcePage(html: string, sourceUrl?: string) {
     if(!query)return [];const hidden:Record<string,string>={};for(const i of inputs)if(i.type==='hidden'&&i.name)hidden[i.name]=i.value||'';
     return [{action:f.action||sourceUrl||'',queryName:query.name,hidden}];
   });
-  return {links,searchForms,structuredText, caption: [...new Set(captions)].join('\n\n'), title: meta['og:title'] || decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || ''), description: meta['og:description'] || meta.description || (!facebook ? meta['twitter:description'] : '') || '', image: image(recipe?.image) || meta['og:image'] || meta['twitter:image'] || '', body, destinations};
+  return {links,searchForms,structuredText,instagramCarousel, caption: [...new Set(captions)].join('\n\n'), title: meta['og:title'] || decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || ''), description: meta['og:description'] || meta.description || (!facebook ? meta['twitter:description'] : '') || '', image: image(recipe?.image) || meta['og:image'] || meta['twitter:image'] || '', body, destinations};
 }
