@@ -1,0 +1,15 @@
+/* Separate the method from the photo/actions so ingredients come first when
+   desktop columns stack. Keep DOM and visual reading order aligned on phones. */
+.sp-root .sp-detail-grid > .sp-detail-intro { display: block; grid-column: 1; grid-row: 1; }
+.sp-root .sp-detail-grid > .sp-detail-method { display: block; grid-column: 1; grid-row: 2; min-width: 0; }
+.sp-root .sp-detail-grid > .sp-ingredients { grid-column: 2; grid-row: 1 / span 2; }
+.cp-recipe-metadata { display: grid; gap: 0 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cp-recipe-metadata .sp-field:last-child { grid-column: 1 / -1; }
+@media (max-width: 950px) {
+  .sp-root .sp-detail-grid > .sp-detail-intro,
+  .sp-root .sp-detail-grid > .sp-ingredients,
+  .sp-root .sp-detail-grid > .sp-detail-method { grid-column: 1; grid-row: auto; }
+}
+@media (max-width: 650px) {
+  .cp-recipe-metadata { grid-template-columns: minmax(0, 1fr); }
+}
