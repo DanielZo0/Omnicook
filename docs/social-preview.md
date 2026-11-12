@@ -80,4 +80,6 @@ Verification: TypeScript passes; 11 focused planner/date/generation/shopping tes
 
 More options now uses a native block disclosure with a single column of icon/text action rows, replacing the flex-root details that placed its summary and actions side by side. Collapsed actions remain hidden. Rows use14px text, consistent18px line icons,48px targets and no link underlines. New shared PreviewBack control provides the same chevron,14px type,44px target, spacing and focus treatment across recipe, import, cooking and profile screens. Browser verified open/closed behaviour, matching dimensions and no document overflow at320px. TypeScript passes. Presentation only; no backend or production changes.
 
-The production integration is documented in `docs/social-release.md`. This document describes the earlier local prototype, not a deployable replacement for the original app.
+### UI audit corrections — 12 November 2026
+
+The eight findings in docs/2026-11-11-local-ui-ux-review.md are implemented in this disposable preview. New manual recipes require base servings, with optional time/cuisine. Detail/cooking/shopping share quantity handling; edited metadata is available to new planner picks without resetting planned meals. Public saved provenance, contextual header audience, Shopping breadcrumb, mobile ingredient order and prototype notice/nutrition copy are corrected. All changes remain local; no real sharing, account/database writes or deployment was added. Full verification is recorded in the review document.

@@ -16,8 +16,10 @@ export function RecipePicker({
   onSave,
   onDateChange,
   onSlotChange,
+  nutritionUnavailable = false,
 }: {
   recipes: PlannableRecipe[];
+  nutritionUnavailable?: boolean;
   date: string;
   slot: MealSlot;
   initialKey?: string;
@@ -70,6 +72,7 @@ export function RecipePicker({
           onChange={(e) => setQuery(e.target.value)}
         />
       </label>
+      {nutritionUnavailable && <p className="planner-muted">Nutrition estimates are unavailable in this preview. You can still plan meals and build your shopping list.</p>}
       <div className="planner-picker-list">
         {recipes
           .filter((r) =>
@@ -93,10 +96,10 @@ export function RecipePicker({
                   {r.prepMinutes !== null && r.cookMinutes !== null
                     ? `${r.prepMinutes + r.cookMinutes} min`
                     : "Time not set"}{" "}
-                  ·{" "}
+                  {!nutritionUnavailable && <>·{" "}
                   {r.nutrition.status === "complete"
                     ? "Nutrition estimated"
-                    : "Nutrition needs review"}
+                    : "Nutrition needs review"}</>}
                 </small>
               </span>
               <span aria-hidden="true">{selected === r.key ? "✓" : "+"}</span>

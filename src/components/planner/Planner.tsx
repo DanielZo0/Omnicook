@@ -44,6 +44,7 @@ type Props = {
   onMode: (mode: "planner" | "shopping") => void;
   onCookbookChanged: () => void;
   compactCurrentWeek?: boolean;
+  previewOnly?: boolean;
 };
 export function Planner({
   ownerKey,
@@ -56,6 +57,7 @@ export function Planner({
   onMode,
   onCookbookChanged,
   compactCurrentWeek = false,
+  previewOnly = false,
 }: Props) {
   const [today, setToday] = useState(localToday);
   const [showEarlier, setShowEarlier] = useState(false);
@@ -169,7 +171,7 @@ export function Planner({
   useEffect(() => setShowEarlier(false), [week, ownerKey]);
   const dates = weekDates(week),
     entries = state?.entries || [],
-    activeRecipes = state?.recipes || mobileRecipes;
+    activeRecipes = previewOnly ? mobileRecipes : state?.recipes || mobileRecipes;
   const isCurrentWeek = dates.includes(today);
   const visibleDates = compactCurrentWeek ? visibleWeekDates(week, today, showEarlier) : dates;
   const hiddenEarlierCount = isCurrentWeek ? dates.filter(date => date < today).length : 0;
@@ -297,8 +299,9 @@ export function Planner({
       );
     else {
       try {
+        const current = previewOnly ? { ...state, recipes: mobileRecipes } : state;
         const base =
-          draft && swap ? { ...state, entries: draft.entries } : state;
+          draft && swap ? { ...current, entries: draft.entries } : current;
         const generated = generatePlan(base, input, ownerKey);
         setDraft(generated);
         applyKey.current = crypto.randomUUID();
@@ -430,7 +433,7 @@ export function Planner({
       {!signedIn && (
         <p className="planner-notice">
           Preview only. Changes are temporary.{" "}
-          <a href="/login">Sign in to save your plan</a>.
+          {!previewOnly && <><a href="/login">Sign in to save your plan</a>.</>}
         </p>
       )}
       {error && (
@@ -737,6 +740,7 @@ export function Planner({
       )}
       {picker && (
         <RecipePicker
+          nutritionUnavailable={previewOnly}
           recipes={activeRecipes.filter((r) => r.source.kind === "recipe")}
           date={picker.date}
           slot={picker.slot}

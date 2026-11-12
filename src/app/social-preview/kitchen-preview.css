@@ -1,0 +1,79 @@
+.cp-recipe-main-actions{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0 0}.cp-recipe-main-actions>.sp-primary{background:#f9d94e;border-color:#f9d94e;color:#28563d}.cp-ingredients-at-hand{margin-top:26px;padding:22px 25px;border:1px solid #e2e5cd;border-radius:15px;background:#fffef8}.cp-ingredients-at-hand h2{font-size:25px;margin:0 0 8px}.cp-ingredients-at-hand p{font-size:13px;color:#65735d}.cp-ingredients-at-hand label{display:flex;align-items:center;gap:14px;min-height:52px;padding:10px 0;border-bottom:1px solid #e2e5cd;font-size:16px;cursor:pointer}.cp-ingredients-at-hand label:last-child{border-bottom:0}.cp-ingredients-at-hand label:has(input:checked) span{text-decoration:line-through;color:#65735d}.sp-root .cp-ingredients-at-hand input[type=checkbox]{width:24px;height:24px}.cp-awake{margin-top:8px}.cp-cooking-controls .sp-primary,.cp-cooking-controls .sp-secondary{min-height:56px;font-size:16px;padding:14px 22px}.cp-cooking-controls button{flex:1}.cp-cooking-controls button:disabled{cursor:default;opacity:.45}
+@media(max-width:950px){
+  .sp-root .sp-primary,.sp-root .sp-secondary{min-height:48px;font-size:14px}
+  .sp-root .sp-icon-button{min-width:48px;min-height:48px}
+  .sp-root .sp-back{min-height:48px;font-size:14px;margin-bottom:14px}
+  .sp-root .sp-bottom-nav button{min-height:52px;min-width:64px;font-size:11px}
+  .sp-root .sp-field input,.sp-root .sp-field textarea,.sp-root .sp-field select{font-size:16px;min-height:48px}
+  .sp-root .cp-collection-strip button,.sp-root .sp-filters button{min-height:44px;font-size:12px}
+  .sp-root .sp-text-button,.sp-root .sp-report-link{min-height:44px;padding:10px 4px;font-size:13px}
+  .sp-root .sp-alternative-toggle{min-height:48px;font-size:13px;gap:9px;margin-left:0;width:100%;text-align:left}
+  .sp-root .sp-ingredient{font-size:16px;line-height:1.65;padding:10px 0}
+  .sp-root .sp-ingredient>label{min-height:48px;gap:14px;cursor:pointer}
+  .sp-root .sp-ingredient input[type=checkbox]{width:23px;height:23px}
+  .sp-root .sp-ingredients{padding:22px 20px}
+  .sp-root .sp-step p{font-size:17px;line-height:1.85;margin:0}
+  .sp-root .sp-step>span{min-width:34px;min-height:34px;font-size:15px}
+  .sp-root .sp-step{gap:12px;margin:24px 0}
+  .sp-root .sp-recipe-story{font-size:15px;line-height:1.8}
+  .sp-root .sp-alternatives strong{font-size:15px}
+  .sp-root .sp-alternatives p{font-size:14px;line-height:1.8}
+  .sp-root .sp-alt-author,.sp-root .sp-alt-author em{font-size:12px}
+  .sp-root .sp-alt-setting label{font-size:13px;min-height:48px}
+  .sp-root .cp-servings button{min-width:44px;min-height:48px;font-size:20px}
+  .sp-root .cp-servings{font-size:12px;gap:8px}
+  .sp-root:has(.cp-recipe-main-actions) .sp-bottom-nav,.sp-root:has(.cp-cooking) .sp-bottom-nav{display:none}
+  .cp-recipe-main-actions{position:fixed;left:0;right:0;bottom:0;z-index:4;margin:0;padding:12px 16px max(12px,env(safe-area-inset-bottom));display:grid;grid-template-columns:1.15fr 1fr;gap:10px;border-top:1px solid #d7dec5;background:#fffef8f5;backdrop-filter:blur(12px)}
+  .sp-root .cp-recipe-main-actions button{min-height:56px;font-size:16px;padding:13px 9px;white-space:normal;line-height:1.35}
+  .cp-cooking{padding-bottom:50px}
+  .sp-root .cp-cooking-panel{padding:24px 21px}
+  .sp-root .cp-cooking-panel h2{font-size:29px;line-height:1.55;margin-bottom:12px}
+  .cp-cooking-controls{position:fixed;left:0;right:0;bottom:0;z-index:4;padding:12px 16px max(12px,env(safe-area-inset-bottom));background:#fffef8f5;border-top:1px solid #d7dec5;backdrop-filter:blur(12px);gap:12px}
+  .sp-root .cp-cooking-controls .sp-primary,.sp-root .cp-cooking-controls .sp-secondary{min-height:58px;font-size:16px;padding:14px 10px}
+  .cp-ingredients-at-hand{padding:20px;margin-top:24px}
+  .cp-ingredients-at-hand label{min-height:56px;font-size:17px;line-height:1.6;gap:16px}
+  .sp-root .cp-awake{font-size:14px;min-height:48px}
+  .sp-root .sp-detail-actions{margin:4px 0 14px;gap:12px}
+  .sp-root .sp-group-only{font-size:12px}
+  .sp-root:has(.cp-cooking) .sp-toast,.sp-root:has(.cp-recipe-main-actions) .sp-toast{bottom:100px}
+  .sp-root .sp-section-heading{flex-wrap:wrap}
+  .sp-root:has(.cp-recipe-main-actions) .sp-workspace,.sp-root:has(.cp-cooking) .sp-workspace{padding-bottom:calc(132px + env(safe-area-inset-bottom))}
+  html:has(.cp-recipe-main-actions),html:has(.cp-cooking){scroll-padding-bottom:140px}
+}
+@media(min-width:651px) and (max-width:950px){.cp-recipe-main-actions,.cp-cooking-controls{left:200px}}
+
+/* Keep card content compact; reserve space for touch targets, not blank copy. */
+.sp-card{display:flex;flex-direction:column}
+.sp-card-content{display:flex;flex:1;flex-direction:column;padding:10px 1px 0}
+.sp-card-content .sp-person{align-self:flex-start}
+.sp-card h3{margin:7px 0 6px}
+.sp-card p{min-height:0;margin:0 0 10px;line-height:1.55}
+.sp-card-meta{margin-top:auto}
+.sp-card-actions{margin-top:10px;padding-top:4px;gap:8px}
+.sp-card-actions button{min-height:44px;min-width:44px;padding:0}
+@media(max-width:650px){
+  .sp-card-image{aspect-ratio:1.18}
+  .sp-card-content{padding-top:9px}
+  .sp-card h3{margin:6px 0}
+  .sp-card p{min-height:0;margin-bottom:8px}
+  .sp-card-actions{margin-top:8px;padding-top:3px;gap:4px}
+}
+@media(max-width:360px){
+  .sp-workspace{padding-left:16px;padding-right:16px}
+  .sp-card-actions button:nth-child(2){font-size:0;gap:0}
+}
+
+/* Keep Omnicook's yellow as a functional accent throughout the combined shell. */
+.cp-sidebar-add{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;margin:-16px 0 22px;padding:12px;border-radius:11px;background:#f9d94e;color:#28563d;font-size:13px;font-weight:700}
+.cp-cookbook-feature{background:#f9d94e}
+.cp-planner-tabs button[aria-pressed=true],.cp-collection-strip button[aria-pressed=true]{background:#f9d94e;color:#28563d;border-color:#f9d94e;font-weight:700}
+.cp-planner .planner-generation-actions .primary-button,.cp-cooking-controls .sp-primary{background:#f9d94e;color:#28563d;border-color:#f9d94e}
+@media(max-width:650px){
+  .sp-root .sp-bottom-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;align-items:end;padding:6px 10px max(10px,env(safe-area-inset-bottom))}
+  .sp-root .sp-bottom-nav button{min-width:0;min-height:52px;width:100%;padding:5px 2px;font-size:10px}
+  .sp-root .sp-bottom-nav button[aria-current=page]:not(.cp-nav-add){background:#fff0a5;color:#28563d}
+  .sp-root .sp-bottom-nav .cp-nav-add{align-self:end;position:relative;gap:4px;padding:0 0 2px;background:transparent;color:#28563d}
+  .sp-root .cp-nav-add>span{display:grid;place-items:center;width:50px;height:50px;max-width:100%;border-radius:16px;background:#f9d94e;box-shadow:0 2px 0 #d2b327;transform:translateY(-9px);margin-bottom:-7px}
+  .sp-root .cp-nav-add>small{font-size:10px;font-weight:700;line-height:1.4;white-space:nowrap}
+  .sp-root:has(.cp-recipe-main-actions) .sp-bottom-nav,.sp-root:has(.cp-cooking) .sp-bottom-nav{display:none}
+}
