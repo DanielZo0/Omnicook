@@ -18,6 +18,7 @@ export function SharedRecipeView({
   onAuthor,
   onCookingChange,
   anonymous = false,
+  active = true,
 }: {
   recipe: SharedRecipe;
   cookbookId?: string;
@@ -28,6 +29,7 @@ export function SharedRecipeView({
   onAuthor?: (id: string) => void;
   onCookingChange?: (active: boolean) => void;
   anonymous?: boolean;
+  active?: boolean;
 }) {
   const [checked, setChecked] = useState<string[]>([]),
     [scale, setScale] = useState(1),
@@ -38,20 +40,20 @@ export function SharedRecipeView({
     [suggest, setSuggest] = useState<SocialIngredient | null>(null),
     [report, setReport] = useState(false);
   useEffect(() => {
-    onCookingChange?.(step !== null);
-    if (step !== null)
+    onCookingChange?.(active && step !== null);
+    if (active && step !== null)
       document
         .getElementById("active-cooking-step")
         ?.scrollIntoView({ block: "center", behavior: "smooth" });
     return () => onCookingChange?.(false);
-  }, [step, onCookingChange]);
+  }, [step, onCookingChange, active]);
   const wake = useRef<WakeLockSentinel | null>(null),
     key = useRef(crypto.randomUUID()),
     alternativeKeys = useRef<Record<string, string>>({});
   useEffect(() => {
     let live = true;
     async function request() {
-      if (!awake || document.visibilityState !== "visible") return;
+      if (!active || !awake || document.visibilityState !== "visible") return;
       try {
         const lock = await navigator.wakeLock.request("screen");
         if (!live) {
@@ -75,7 +77,7 @@ export function SharedRecipeView({
       wake.current?.release();
       wake.current = null;
     };
-  }, [awake]);
+  }, [awake, active]);
   async function save(alternativeId?: string) {
     setBusy(true);
     try {

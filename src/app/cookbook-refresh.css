@@ -43,3 +43,10 @@
  .app-shell .recipe-feature { min-height:270px; }
  .app-shell .feature-copy { padding:28px; }
 }
+
+/* Retain only visited primary views. Older browsers use display:none. */
+.retained-view { display:flex; flex:1; flex-direction:column; min-width:0; min-height:0; }
+.retained-view.is-inactive { display:none; }
+@supports (content-visibility:hidden) {
+  .retained-view.is-inactive { display:flex; position:absolute; inset:0; content-visibility:hidden; pointer-events:none; }
+}
