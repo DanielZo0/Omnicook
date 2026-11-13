@@ -5,7 +5,7 @@ import {
   type SocialIngredient,
   socialApi,
 } from "@/lib/social/client";
-import { scaleAmount } from "@/lib/mobile/demo-data";
+import { scaleAmount, servingLabel } from "@/lib/mobile/demo-data";
 import { RecipeImage } from "../RecipeImage";
 import { SocialDialog } from "./SharingDialog";
 export function SharedRecipeView({
@@ -139,8 +139,7 @@ export function SharedRecipeView({
           </p>
         )}
         <p>
-          {(r.prepMinutes || 0) + (r.cookMinutes || 0)} min · Serves{" "}
-          {(r.servings || 1) * scale}
+          {r.prepMinutes === null && r.cookMinutes === null ? 'Time not set' : `${(r.prepMinutes || 0) + (r.cookMinutes || 0)} min`} · {servingLabel({n:r.servings || 1,yieldServings:r.servings},scale)}
         </p>
         {r.creator && <p>Recipe credit: {r.creator}</p>}
         {r.photoMetadata?.kind === "generated" && (

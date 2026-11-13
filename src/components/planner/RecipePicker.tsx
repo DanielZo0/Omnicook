@@ -72,7 +72,7 @@ export function RecipePicker({
           onChange={(e) => setQuery(e.target.value)}
         />
       </label>
-      {nutritionUnavailable && <p className="planner-muted">Nutrition estimates are unavailable in this preview. You can still plan meals and build your shopping list.</p>}
+      {nutritionUnavailable && <p className="planner-muted">Nutrition estimates are unavailable. You can still plan meals and build your shopping list.</p>}
       <div className="planner-picker-list">
         {recipes
           .filter((r) =>

@@ -1,10 +1,12 @@
 'use client';
 
+import './cookbook-refresh.css';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { s } from '@/lib/mobile/style';
 import {
   COLLECTION_GLYPHS, COLLECTION_PALETTE, DAYS, DEMO_COLLECTIONS, DEMO_RECIPES,
-  EXTRACT_STEPS, FILTERS, GROUPS, matchesFilter, scaleAmount, type Aisle, type MobileRecipe,
+  EXTRACT_STEPS, FILTERS, GROUPS, matchesFilter, scaleAmount, servingLabel, type Aisle, type MobileRecipe,
 } from '@/lib/mobile/demo-data';
 import { vaultToMobile } from '@/lib/mobile/adapters';
 import { AUTH_CONFIGURED, useSession } from '@/lib/auth/session';
@@ -201,7 +203,7 @@ export default function Home() {
     } finally {setUploadingPhoto(false);}
   }
 
-  const recipes: MobileRecipe[] = signedIn ? vaultRecipes.map(vaultToMobile) : DEMO_RECIPES;
+  const recipes: MobileRecipe[] = useMemo(() => signedIn ? vaultRecipes.map(vaultToMobile) : DEMO_RECIPES, [signedIn, vaultRecipes]);
   const active = recipes.find((r) => r.id === activeId) ?? recipes[0];
   const filteredVault = recipes.filter((r) => matchesFilter(r, filter));
   const showVaultCards = filteredVault.length > 0;
@@ -534,16 +536,16 @@ export default function Home() {
     </div>}
 
     {screen === 'vault' && <div className="vault-screen app-scroll">
+      <div className="cookbook-topbar"><div className="mobile-brand"><img src="/omnicook-mark.svg" width={30} height={30} alt="" />omnicook<span>.</span></div><span className="cookbook-location">Your kitchen / Cookbook</span><button className="avatar mobile-account" aria-label="My kitchen" onClick={() => go('profile')}><KitchenIcon name="user" size={21} /></button></div>
       <header className="cookbook-header">
-        <div><div className="mobile-brand"><img src="/omnicook-mark.svg" width={34} height={34} alt="" /> omnicook<span>.</span></div><h1>Your cookbook<span className="kitchen-flower" aria-hidden="true">✿</span></h1><p>{loadingVault ? 'Gathering your recipes…' : `${recipes.length} recipes, ready when you are.`}</p></div>
-        <button className="avatar mobile-account" aria-label="My kitchen" onClick={() => go('profile')}><KitchenIcon name="user" size={21} /></button>
-        <button className="outline-button header-add" onClick={() => go('import')}><KitchenIcon name="plus" size={18} /> Add a recipe</button>
+        <div><h1>Your recipe universe.</h1><p>{loadingVault ? 'Gathering your recipes…' : `${recipes.length} ${recipes.length === 1 ? 'recipe' : 'recipes'}, collected and made your own.`}</p></div>
+        <button className="primary-button cookbook-add" onClick={() => go('import')}><KitchenIcon name="plus" size={18} /><span>Add a recipe</span></button>
       </header>
       <button className="cookbook-search" onClick={() => go('search')}><KitchenIcon name="search" size={21} /><span>Find a recipe, ingredient or creator</span><span className="search-hint">Search your cookbook</span></button>
       {status && <p className="inline-status" role="status">{status}</p>}
       {!signedIn && configured && <p className="preview-notice">You’re exploring the preview. <a href="/login">Sign in for your own cookbook</a></p>}
       {featured && !loadingVault && filter === 'All recipes' && !collectionFilter && <section className="recipe-feature" aria-label="Recipe inspiration">
-        <div className="feature-copy"><span className="feature-label"><KitchenIcon name="spark" size={16} /> A little inspiration</span><h2>{featured.t}</h2><p><KitchenIcon name="clock" size={15} />{featured.time}<span className="feature-divider" />{featured.a.length} ingredients</p><button className="feature-button" onClick={() => openRecipe(featured.id)}>Let’s make this<KitchenIcon name="arrow" size={18} /></button></div>
+        <div className="feature-copy"><span className="feature-label"><KitchenIcon name="spark" size={16} /> Tonight, made simple</span><h2>{featured.t}</h2><p><KitchenIcon name="clock" size={15} />{featured.time}<span className="feature-divider" />{featured.a.length} ingredients</p><button className="feature-button" onClick={() => openRecipe(featured.id)}>Let’s make this<KitchenIcon name="arrow" size={18} /></button></div>
         <button className="feature-photo" onClick={() => openRecipe(featured.id)} aria-label={`Open ${featured.t}`}><RecipeImage src={featured.img ?? undefined} alt={featured.t} /><span>{featured.k}</span></button>
       </section>}
       {collections.length > 0 && <div className="collection-strip" aria-label="Recipe collections">{collections.map(c => <button key={c.id} onClick={() => openCollection(c.id)}><KitchenIcon name="book" size={17} /><b>{c.name}</b><span>{c.count}</span></button>)}</div>}
@@ -553,7 +555,7 @@ export default function Home() {
         {!showVaultCards && <div className="cookbook-empty"><KitchenIcon name="book" size={36} /><h3>{vaultEmptyTitle}</h3><p>{vaultEmptyDetail}</p>{!loadingVault && <button className="primary-button" onClick={() => filter !== 'All recipes' ? pickFilter('All recipes') : go('import')}>{filter !== 'All recipes' ? 'Show all recipes' : 'Add a recipe'}</button>}</div>}
         {showVaultCards && <div className={`recipe-gallery layout-${layout}`}>{filteredVault.map((r, i) => <button key={r.id} className={`recipe-tile ${layout === 'editorial' && i === 0 ? 'tile-featured' : ''}`} onClick={() => openRecipe(r.id)}>
           <span className="tile-image"><RecipeImage src={r.img ?? undefined} alt={r.t} loading="lazy" /><span className="tile-source">{r.s}</span></span>
-          <span className="tile-copy"><span className="tile-category">{r.k}</span><strong>{r.t}</strong><span className="tile-meta"><KitchenIcon name="clock" size={14} />{r.time}<span className="meta-dot" />{r.n} {r.n === 1 ? 'serving' : 'servings'}</span></span>
+          <span className="tile-copy"><span className="tile-category">{r.k}</span><strong>{r.t}</strong><span className="tile-meta"><KitchenIcon name="clock" size={14} />{r.time}<span className="meta-dot" />{servingLabel(r)}</span></span>
           {layout === 'feed' && <KitchenIcon name="chevron" size={20} />}
         </button>)}</div>}
       </section>
@@ -639,9 +641,10 @@ export default function Home() {
           <div style={s('display:flex;gap:8px;flex-wrap:wrap;margin-top:12px')}>
             {(['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Other'] as const).map((cat) => { const on = reviewDraft.draft.category === cat; return <button key={cat} onClick={() => updateDraft('category', cat)} style={s(`padding:7px 11px;border:1px solid ${on ? GREEN : LINE};border-radius:20px;background:${on ? GREEN : CARD};color:${on ? '#fff' : INK};font-size:11.5px;font-weight:600`)}>{cat}</button>; })}
           </div>
-          <label style={s('display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#526447')}>Servings
-            <input type="number" min={1} value={reviewDraft.draft.servings ?? ''} onChange={(e) => updateDraft('servings', e.target.value ? Number(e.target.value) : null)} style={s(`width:72px;padding:9px 10px;border:1px solid ${LINE};border-radius:8px;background:${CARD};font-size:16px`)} />
+          <label style={s('display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#526447')}>Base servings (optional)
+            <input type="number" min={0.1} step={0.1} value={reviewDraft.draft.servings ?? ''} onChange={(e) => updateDraft('servings', e.target.value ? Number(e.target.value) : null)} style={s(`width:72px;padding:9px 10px;border:1px solid ${LINE};border-radius:8px;background:${CARD};font-size:16px`)} />
           </label>
+          <div className="recipe-time-fields">{([['prepMinutes', 'Preparation time (minutes)'], ['cookMinutes', 'Cooking time (minutes)']] as const).map(([field, label]) => <label key={field}>{label}<input type="number" min="0" step="1" value={reviewDraft.draft[field] ?? ''} placeholder="Not set" onChange={e => updateDraft(field, e.target.value === '' ? null : Number(e.target.value))}/></label>)}</div><p className="recipe-metadata-note">Leave unknown values blank. Ingredient amounts are for the base servings.</p>
         </div>
         {(!reviewDraft.alternatives||Boolean(reviewDraft.selectedAlternativeId))&&<>
         <div style={s(`margin:20px 20px 0;padding:14px 15px;border:1px solid ${LINE};border-radius:16px;background:${CARD}`)}>
@@ -697,7 +700,7 @@ export default function Home() {
         {safeSourceLink(active.originalRecipeUrl)&&<p style={{margin:'12px 20px'}}><a href={safeSourceLink(active.originalRecipeUrl)!} target="_blank" rel="noopener noreferrer">Full recipe</a></p>}
 
         <div className="detail-hero"><RecipeImage src={active.img ?? undefined} alt={active.t} /><div className="detail-toolbar"><button className="round-button" onClick={() => go('vault')} aria-label="Back to cookbook"><KitchenIcon name="arrow" style={{transform:'rotate(180deg)'}} /></button>{signedIn && <div><button className="round-button" onClick={openEditRecipe} aria-label="Edit recipe"><KitchenIcon name="edit" size={19} /></button><button className="round-button" onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe"><KitchenIcon name="trash" size={19} /></button></div>}</div></div>
-        <header className="recipe-heading"><span className="recipe-origin">{active.k} <span>from {active.s}</span></span><h1>{active.t}</h1><p><KitchenIcon name="clock" size={17} />{active.time}<span className="meta-dot" />Serves {active.n * servings}<span className="meta-dot" />{active.a.length} ingredients</p></header>
+        <header className="recipe-heading"><span className="recipe-origin">{active.k} <span>from {active.s}</span></span><h1>{active.t}</h1><p><KitchenIcon name="clock" size={17} />{active.time}<span className="meta-dot" />{servingLabel(active, servings)}<span className="meta-dot" />{active.a.length} ingredients</p></header>
         {signedIn && <div style={s('padding:12px 20px 0;display:flex;flex-direction:column;gap:8px')}>
           {active.photoMetadata?.kind === 'generated' && <span style={s(`font-size:11px;color:${MUTED}`)}>AI illustration</span>}
           {active.photoMetadata?.kind === 'lookup' && <span style={s(`font-size:11px;color:${MUTED}`)}>
@@ -836,7 +839,7 @@ export default function Home() {
       <button aria-current={screen === 'community' ? 'page' : undefined} onClick={() => {setOwnFeed(false);go('community');}}><KitchenIcon name="user" /><span>Community</span></button>
       <button className="nav-add" aria-label="Add a recipe" onClick={() => go('import')}><span><KitchenIcon name="plus" size={26} /></span><small>Add recipe</small></button>
       <button aria-current={screen === 'planner' ? 'page' : undefined} onClick={() => go('planner')}><KitchenIcon name="calendar" /><span>Plan</span></button>
-      <button aria-current={screen === 'grocery' ? 'page' : undefined} onClick={() => go('grocery')}><KitchenIcon name="basket" /><span>Shop</span></button>
+      <button aria-current={screen === 'grocery' ? 'page' : undefined} onClick={() => go('grocery')}><KitchenIcon name="basket" /><span>Shopping</span></button>
     </nav>}
     </div>
     {sharingRecipe&&<SharingDialog key={ownerKey+sharingRecipe.id} recipeId={sharingRecipe.id} title={sharingRecipe.title} onClose={()=>setSharingRecipe(null)}/>}
