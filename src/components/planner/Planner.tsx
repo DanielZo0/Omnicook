@@ -40,7 +40,7 @@ type Props = {
   mode: "planner" | "shopping";
   initialRecipeId: string | null;
   onConsumeRecipe: () => void;
-  onOpenRecipe: (id: string) => void;
+  onOpenRecipe: (id: string, trigger?: HTMLElement) => void;
   onMode: (mode: "planner" | "shopping") => void;
   onCookbookChanged: () => void;
   compactCurrentWeek?: boolean;
@@ -534,9 +534,9 @@ export function Planner({
                     <>
                       <button
                         className="planner-meal"
-                        onClick={() => {
+                        onClick={(event) => {
                           if (entry.source.kind === "recipe")
-                            onOpenRecipe(entry.source.recipeId);
+                            onOpenRecipe(entry.source.recipeId,event.currentTarget);
                           else setDetail(entry);
                         }}
                       >

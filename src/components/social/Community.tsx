@@ -40,15 +40,19 @@ type Feed = {
 };
 export function Community({
   signedIn,
+  active = true,
   onAccount,
   onSaved,
   initialProfile = false,
+  profileRequest = 0,
   onCookingChange,
 }: {
   signedIn: boolean;
+  active?: boolean;
   onAccount: () => void;
   onSaved: (id: string) => void;
   initialProfile?: boolean;
+  profileRequest?: number;
   onCookingChange?: (active: boolean) => void;
 }) {
   const [state, setState] = useState<CommunityState | null>(null),
@@ -76,6 +80,9 @@ export function Community({
     >(null),
     [invite, setInvite] = useState(""),
     [reports, setReports] = useState<any[]>([]);
+  useEffect(()=>{
+    if(initialProfile){setTab('profile');setProfileId(undefined);setOffset(0);setRecipe(null);}
+  },[profileRequest]);
   const request = useRef(0),
     alive = useRef(true);
   useEffect(() => {
@@ -218,7 +225,7 @@ export function Community({
     return (
       <div className="community-screen">
         {error && <p role="alert">{error}</p>}
-        <SharedRecipeView
+        <SharedRecipeView active={active}
           onCookingChange={onCookingChange}
           key={recipe.id}
           recipe={recipe}

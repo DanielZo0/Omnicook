@@ -37,6 +37,8 @@ import {KitchenAwake} from '@/components/social/KitchenAwake';
 import {Community} from '@/components/social/Community';
 import {RecipeSharingSummary} from '@/components/social/RecipeSharingSummary';
 import {SharingDialog} from '@/components/social/SharingDialog';
+import { RetainedView } from '@/components/RetainedView';
+import { retainView, retainedForOwner, recipeReturnScreen, recipeReturnLabel, type ViewCache, type RecipeReturnScreen } from '@/lib/mobile/navigation';
 import { Planner } from '@/components/planner/Planner';
 import {safeSourceLink} from '@/lib/recipes/source-links';
 type ReviewState={draft:EditableRecipeDraft;sourceUrl:string|null;imageUrl:string|null;originalRecipeUrl?:string|null;status?:'complete'|'incomplete';missingFields?:('ingredients'|'instructions')[];message?:string;completionConfirmed?:boolean;alternatives?:FormulaAlternative[];selectedAlternativeId?:string|null;alternativeBaseTitle?:string};
@@ -76,6 +78,9 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>('vault');
   const [sharingRecipe,setSharingRecipe]=useState<{id:string;title:string}|null>(null);
   const [ownFeed,setOwnFeed]=useState(false);
+  const [profileRequest,setProfileRequest]=useState(0);
+  const detailRegion=useRef<HTMLDivElement>(null);
+  useEffect(()=>{if(screen==='detail')detailRegion.current?.focus({preventScroll:true});},[screen]);
   const [communityCooking,setCommunityCooking]=useState(false);
   const [plannerVisited,setPlannerVisited]=useState(false);
   useEffect(()=>{if(screen==='planner'||screen==='grocery')setPlannerVisited(true);},[screen]);
@@ -103,6 +108,18 @@ export default function Home() {
   const [reviewDraft, setReviewDraft] = useState<ReviewState | null>(null);
   const owner:DraftOwner=user?.id?{kind:'user',userId:user.id}:{kind:'guest'};
   const ownerKey=draftOwnerKey(owner);
+  const [viewCache,setViewCache]=useState<ViewCache>({owner:ownerKey,views:[]});
+  useEffect(()=>setViewCache(cache=>retainView(cache,ownerKey,screen)),[ownerKey,screen]);
+  const retainedViews=retainedForOwner(viewCache,ownerKey);
+  const [recipeOrigin,setRecipeOrigin]=useState<RecipeReturnScreen>('vault');
+  const returnFocus=useRef<{owner:string;element:HTMLElement|null}|null>(null);
+  const pendingReturn=useRef(false);
+  useEffect(()=>{
+    if(!pendingReturn.current || screen!==recipeOrigin)return;
+    pendingReturn.current=false;
+    const target=returnFocus.current;
+    if(target?.owner===ownerKey && target.element?.isConnected && !target.element.closest('[inert], [hidden]')) target.element.focus({preventScroll:true});
+  },[screen,recipeOrigin,ownerKey]);
   const liveStamp=useRef({ownerKey,revision:0,requestId:0});liveStamp.current.ownerKey=ownerKey;
   const reviewOwner=useRef(ownerKey);
   const [recovery,setRecovery]=useState<StoredDraft|null>(null);
@@ -114,6 +131,7 @@ export default function Home() {
   const [editRecipeId, setEditRecipeId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [vaultOwner,setVaultOwner]=useState(ownerKey);
   const [vaultRecipes, setVaultRecipes] = useState<VaultRecipe[]>([]);
   const [mealPlan, setMealPlan] = useState<MealPlanItem[]>([]);
   const [collectionsState, setCollectionsState] = useState<Collection[]>([]);
@@ -132,6 +150,7 @@ export default function Home() {
   useEffect(()=>{
     if(sessionLoading)return;
     liveStamp.current.revision++;liveStamp.current.requestId++;
+    returnFocus.current=null;pendingReturn.current=false;setRecipeOrigin('vault');setQuery('');setFilter('All recipes');setCollectionFilter(null);setOwnFeed(false);
     setSharingRecipe(null);setReviewDraft(null);setReplacement(null);setPendingLeave(null);reviewOwner.current=ownerKey;
     setEditRecipeId(null);setSelectedCollectionId(null);setSource('');setStatus(null);setResolvingOriginal(false);setImporting(false);setScreen(current=>screenAfterDraftOwnerChange(current));reviewOwner.current='';
     try{setRecovery(readDraft(window.localStorage,owner,Date.now())||(owner.kind==='user'?readDraft(window.localStorage,{kind:'guest'},Date.now()):null));}
@@ -160,7 +179,7 @@ export default function Home() {
     try {
       const [recipes, plan, collectionsList] = await Promise.all([listRecipes(), listMealPlanItems(), listCollections()]);
       if(request!==vaultRequest.current || requestOwner!==liveStamp.current.ownerKey)return;
-      setVaultRecipes(recipes);
+      setVaultOwner(requestOwner);setVaultRecipes(recipes);
       setMealPlan(plan);
       setCollectionsState(collectionsList);
     } catch (error) {
@@ -182,13 +201,13 @@ export default function Home() {
   useEffect(() => () => { if (extractTimer.current) clearInterval(extractTimer.current); }, []);
 
   useEffect(() => {
-    if (!signedIn || !vaultRecipes.some(recipe => recipe.photoPending)) return;
+    if (!signedIn || vaultOwner!==ownerKey || !['vault','search','detail','review','edit'].includes(screen) || !vaultRecipes.some(recipe => recipe.photoPending)) return;
     const requestOwner=ownerKey;
     const timer = setTimeout(() => {
       listRecipes().then(recipes=>{if(requestOwner===liveStamp.current.ownerKey)setVaultRecipes(recipes);}).catch(() => {});
     }, 5000);
     return () => clearTimeout(timer);
-  }, [signedIn, vaultRecipes,ownerKey]);
+  }, [signedIn, vaultRecipes,ownerKey,vaultOwner,screen]);
 
   async function addCookingPhoto(file: File, recipeId: string) {
     if (uploadingPhoto) return;
@@ -203,7 +222,7 @@ export default function Home() {
     } finally {setUploadingPhoto(false);}
   }
 
-  const recipes: MobileRecipe[] = useMemo(() => signedIn ? vaultRecipes.map(vaultToMobile) : DEMO_RECIPES, [signedIn, vaultRecipes]);
+  const recipes: MobileRecipe[] = useMemo(() => signedIn ? (vaultOwner===ownerKey ? vaultRecipes.map(vaultToMobile) : []) : DEMO_RECIPES, [signedIn, vaultRecipes,vaultOwner,ownerKey]);
   const active = recipes.find((r) => r.id === activeId) ?? recipes[0];
   const filteredVault = recipes.filter((r) => matchesFilter(r, filter));
   const showVaultCards = filteredVault.length > 0;
@@ -220,7 +239,7 @@ export default function Home() {
   const filteredSearch = recipes.filter((r) =>
     (collectionFilter ? r.collectionId === collectionFilter : matchesFilter(r, filter))
     && JSON.stringify(r).toLowerCase().includes(query.toLowerCase()));
-  const collectionDefs = signedIn ? collectionsState : DEMO_COLLECTIONS;
+  const collectionDefs = signedIn ? (vaultOwner===ownerKey ? collectionsState : []) : DEMO_COLLECTIONS;
   const collections = useMemo(() => collectionDefs
     .map((c, i) => ({ ...c, count: recipes.filter((r) => r.collectionId === c.id).length, glyph: COLLECTION_GLYPHS[i % COLLECTION_GLYPHS.length], bg: COLLECTION_PALETTE[i % COLLECTION_PALETTE.length] }))
     .filter((c) => c.count > 0), [collectionDefs, recipes]);
@@ -250,7 +269,7 @@ export default function Home() {
     if(alternativeHasEdits(reviewDraft)&&!window.confirm('Switch formula and discard your edits to the current formula?'))return;
     changeReview(chooseAlternative(reviewDraft,id));
   }
-  function openRecipe(id: string) { setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); go('detail'); }
+  function openRecipe(id: string, trigger?: HTMLElement) { setRecipeOrigin(recipeReturnScreen(screen));returnFocus.current={owner:ownerKey,element:trigger??(document.activeElement instanceof HTMLElement ? document.activeElement : null)};setActiveId(id); setServings(1); setChefReply(''); setChefQuestion(''); go('detail'); }
   function openCollection(id: string) { setCollectionFilter(id); setQuery(''); go('search'); }
   function pickFilter(f: string) { setCollectionFilter(null); setFilter(f); }
   function startCook() { setCookStep(0); go('cook'); }
@@ -492,8 +511,8 @@ export default function Home() {
 
   if (!bootChecked) return <div style={s(`min-height:100svh;min-height:100dvh;background:${PAPER}`)} />;
 
-  const showTabs = !communityCooking && (['vault', 'search', 'planner', 'grocery', 'profile', 'community'] as Screen[]).includes(screen);
-  const showSidebar = !communityCooking && !(['onboarding', 'cook'] as Screen[]).includes(screen);
+  const showTabs = !(screen==='community'&&communityCooking) && (['vault', 'search', 'planner', 'grocery', 'profile', 'community'] as Screen[]).includes(screen);
+  const showSidebar = !(screen==='community'&&communityCooking) && !(['onboarding', 'cook'] as Screen[]).includes(screen);
   const featured = recipes.find(r => r.img) ?? recipes[0];
   const navigation: { label: string; icon: KitchenIconName; screen: Screen }[] = [
     { label: 'Cookbook', icon: 'book', screen: 'vault' },
@@ -506,17 +525,17 @@ export default function Home() {
   return <main className={`app-shell screen-${screen}`}>
     <InterstitialAd open={interstitialOpen} onClose={closeInterstitial} />
     {showSidebar && <aside className="kitchen-sidebar" aria-label="Cookbook sidebar">
-      <button className="wordmark" onClick={() => { pickFilter('All recipes'); go('vault'); }} aria-label="Omnicook home"><span className="brand-symbol"><img src="/omnicook-mark.svg" width={34} height={34} alt="" /></span>omnicook<span className="brand-dot">.</span></button>
+      <button className="wordmark" onClick={() => go('vault')} aria-label="Omnicook home"><span className="brand-symbol"><img src="/omnicook-mark.svg" width={34} height={34} alt="" /></span>omnicook<span className="brand-dot">.</span></button>
       <button className="primary-button sidebar-add" onClick={() => go('import')}><KitchenIcon name="plus" size={20} /> Add a recipe</button>
       <nav className="sidebar-nav" aria-label="Main navigation">
-        {navigation.map(item => <button key={item.screen} className={`sidebar-link ${navActive(item.screen) ? 'is-active' : ''}`} aria-current={navActive(item.screen) ? 'page' : undefined} onClick={() => { if(item.screen === 'vault') pickFilter('All recipes'); go(item.screen); }}><KitchenIcon name={item.icon} /><span>{item.label}</span>{item.screen === 'vault' && <span className="nav-count">{recipes.length}</span>}</button>)}
+        {navigation.map(item => <button key={item.screen} className={`sidebar-link ${navActive(item.screen) ? 'is-active' : ''}`} aria-current={navActive(item.screen) ? 'page' : undefined} onClick={() => go(item.screen)}><KitchenIcon name={item.icon} /><span>{item.label}</span>{item.screen === 'vault' && <span className="nav-count">{recipes.length}</span>}</button>)}
       </nav>
       {collections.length > 0 && <div className="sidebar-collections"><h2>Your collections</h2>{collections.map(c => <button key={c.id} className={`collection-link ${collectionFilter === c.id && screen === 'search' ? 'is-active' : ''}`} onClick={() => openCollection(c.id)}><span className="collection-dot" style={{background:c.bg}} />{c.name}<span>{c.count}</span></button>)}</div>}
       <div className="sidebar-note"><KitchenIcon name="leaf" size={28} /><p>A place for every<br />recipe worth keeping.</p></div>
       <button className={`sidebar-profile ${screen === 'profile' ? 'is-active' : ''}`} onClick={() => go('profile')}><span className="avatar"><KitchenIcon name="user" size={18} /></span><span><b>My kitchen</b><small>{signedIn ? 'Account & collections' : 'Explore Omnicook'}</small></span><KitchenIcon name="chevron" size={15} /></button>
     </aside>}
     <div className="app-content">
-    {screen === 'community' && <Community onCookingChange={setCommunityCooking} key={ownerKey} signedIn={signedIn} initialProfile={ownFeed} onAccount={()=>go('profile')} onSaved={async id=>{const stamp=ownerKey;if(stamp!==liveStamp.current.ownerKey)return;await refreshVault();if(stamp!==liveStamp.current.ownerKey)return;setActiveId(id);setScreen('detail');}}/>}
+    {(screen === 'community'||retainedViews.includes('community')) && <RetainedView key={`${ownerKey}:community`} name="community" label="Community" active={screen==='community'}><Community active={screen==='community'} onCookingChange={setCommunityCooking} key={ownerKey} signedIn={signedIn} initialProfile={ownFeed} profileRequest={profileRequest} onAccount={()=>go('profile')} onSaved={async id=>{const stamp=ownerKey;if(stamp!==liveStamp.current.ownerKey)return;await refreshVault();if(stamp!==liveStamp.current.ownerKey)return;openRecipe(id);}}/></RetainedView>}
     {screen === 'onboarding' && <div style={s(`flex:1;display:flex;flex-direction:column;padding:${TOP_SAFE} 26px calc(env(safe-area-inset-bottom,0px) + 32px);box-sizing:border-box;background:${GREEN};color:#fffef8`)}>
       <div className="onboarding-brand"><img src="/omnicook-mark.svg" width={44} height={44} alt="" /><span>omnicook.</span></div>
       <div style={s('flex:1;display:flex;flex-direction:column;justify-content:center;gap:26px')}>
@@ -535,7 +554,7 @@ export default function Home() {
       <a href="/login" style={s('margin-top:6px;width:100%;padding:12px;border:0;background:transparent;color:#c9dcc5;font-size:13px;font-weight:600;text-align:center;text-decoration:none;box-sizing:border-box;display:block')}>I already have an account</a>
     </div>}
 
-    {screen === 'vault' && <div className="vault-screen app-scroll">
+    {(screen === 'vault'||retainedViews.includes('vault')) && <RetainedView key={`${ownerKey}:vault`} name="vault" label="Cookbook" active={screen==='vault'}><div className="vault-screen app-scroll">
       <div className="cookbook-topbar"><div className="mobile-brand"><img src="/omnicook-mark.svg" width={30} height={30} alt="" />omnicook<span>.</span></div><span className="cookbook-location">Your kitchen / Cookbook</span><button className="avatar mobile-account" aria-label="My kitchen" onClick={() => go('profile')}><KitchenIcon name="user" size={21} /></button></div>
       <header className="cookbook-header">
         <div><h1>Your recipe universe.</h1><p>{loadingVault ? 'Gathering your recipes…' : `${recipes.length} ${recipes.length === 1 ? 'recipe' : 'recipes'}, collected and made your own.`}</p></div>
@@ -544,25 +563,25 @@ export default function Home() {
       <button className="cookbook-search" onClick={() => go('search')}><KitchenIcon name="search" size={21} /><span>Find a recipe, ingredient or creator</span><span className="search-hint">Search your cookbook</span></button>
       {status && <p className="inline-status" role="status">{status}</p>}
       {!signedIn && configured && <p className="preview-notice">You’re exploring the preview. <a href="/login">Sign in for your own cookbook</a></p>}
-      {featured && !loadingVault && filter === 'All recipes' && !collectionFilter && <section className="recipe-feature" aria-label="Recipe inspiration">
-        <div className="feature-copy"><span className="feature-label"><KitchenIcon name="spark" size={16} /> Tonight, made simple</span><h2>{featured.t}</h2><p><KitchenIcon name="clock" size={15} />{featured.time}<span className="feature-divider" />{featured.a.length} ingredients</p><button className="feature-button" onClick={() => openRecipe(featured.id)}>Let’s make this<KitchenIcon name="arrow" size={18} /></button></div>
-        <button className="feature-photo" onClick={() => openRecipe(featured.id)} aria-label={`Open ${featured.t}`}><RecipeImage src={featured.img ?? undefined} alt={featured.t} /><span>{featured.k}</span></button>
+      {featured && !loadingVault && filter === 'All recipes' && <section className="recipe-feature" aria-label="Recipe inspiration">
+        <div className="feature-copy"><span className="feature-label"><KitchenIcon name="spark" size={16} /> Tonight, made simple</span><h2>{featured.t}</h2><p><KitchenIcon name="clock" size={15} />{featured.time}<span className="feature-divider" />{featured.a.length} ingredients</p><button className="feature-button" onClick={e => openRecipe(featured.id,e.currentTarget)}>Let’s make this<KitchenIcon name="arrow" size={18} /></button></div>
+        <button className="feature-photo" onClick={e => openRecipe(featured.id,e.currentTarget)} aria-label={`Open ${featured.t}`}><RecipeImage src={featured.img ?? undefined} alt={featured.t} /><span>{featured.k}</span></button>
       </section>}
       {collections.length > 0 && <div className="collection-strip" aria-label="Recipe collections">{collections.map(c => <button key={c.id} onClick={() => openCollection(c.id)}><KitchenIcon name="book" size={17} /><b>{c.name}</b><span>{c.count}</span></button>)}</div>}
       <section className="recipe-library" aria-label="Saved recipes">
-        <div className="library-heading"><div><h2>{filter === 'All recipes' && !collectionFilter ? 'All recipes' : activeCollectionName ?? filter}</h2><span>{filteredVault.length} {filteredVault.length === 1 ? 'recipe' : 'recipes'}</span></div><div className="layout-switch" aria-label="Recipe layout">{(['grid', 'feed', 'editorial'] as const).map(k => <button key={k} aria-label={`${k} view`} aria-pressed={layout === k} onClick={() => setLayout(k)}><KitchenIcon name={k === 'grid' ? 'grid' : k === 'feed' ? 'list' : 'book'} size={18} /></button>)}</div></div>
-        <div className="recipe-filters" aria-label="Filter recipes">{GROUPS.map(g => <button key={g} aria-pressed={!collectionFilter && filter === g} onClick={() => pickFilter(g)}>{g}</button>)}</div>
+        <div className="library-heading"><div><h2>{filter === 'All recipes' ? 'All recipes' : filter}</h2><span>{filteredVault.length} {filteredVault.length === 1 ? 'recipe' : 'recipes'}</span></div><div className="layout-switch" aria-label="Recipe layout">{(['grid', 'feed', 'editorial'] as const).map(k => <button key={k} aria-label={`${k} view`} aria-pressed={layout === k} onClick={() => setLayout(k)}><KitchenIcon name={k === 'grid' ? 'grid' : k === 'feed' ? 'list' : 'book'} size={18} /></button>)}</div></div>
+        <div className="recipe-filters" aria-label="Filter recipes">{GROUPS.map(g => <button key={g} aria-pressed={filter === g} onClick={() => pickFilter(g)}>{g}</button>)}</div>
         {!showVaultCards && <div className="cookbook-empty"><KitchenIcon name="book" size={36} /><h3>{vaultEmptyTitle}</h3><p>{vaultEmptyDetail}</p>{!loadingVault && <button className="primary-button" onClick={() => filter !== 'All recipes' ? pickFilter('All recipes') : go('import')}>{filter !== 'All recipes' ? 'Show all recipes' : 'Add a recipe'}</button>}</div>}
-        {showVaultCards && <div className={`recipe-gallery layout-${layout}`}>{filteredVault.map((r, i) => <button key={r.id} className={`recipe-tile ${layout === 'editorial' && i === 0 ? 'tile-featured' : ''}`} onClick={() => openRecipe(r.id)}>
+        {showVaultCards && <div className={`recipe-gallery layout-${layout}`}>{filteredVault.map((r, i) => <button key={r.id} className={`recipe-tile ${layout === 'editorial' && i === 0 ? 'tile-featured' : ''}`} onClick={e => openRecipe(r.id,e.currentTarget)}>
           <span className="tile-image"><RecipeImage src={r.img ?? undefined} alt={r.t} loading="lazy" /><span className="tile-source">{r.s}</span></span>
           <span className="tile-copy"><span className="tile-category">{r.k}</span><strong>{r.t}</strong><span className="tile-meta"><KitchenIcon name="clock" size={14} />{r.time}<span className="meta-dot" />{servingLabel(r)}</span></span>
           {layout === 'feed' && <KitchenIcon name="chevron" size={20} />}
         </button>)}</div>}
       </section>
       <div className="cookbook-footer"><KitchenIcon name="leaf" size={18} /><span>Good recipes deserve to be made again.</span></div>
-    </div>}
+    </div></RetainedView>}
 
-    {screen === 'search' && <div className="utility-screen search-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE}`)}>
+    {(screen === 'search'||retainedViews.includes('search')) && <RetainedView key={`${ownerKey}:search`} name="search" label="Recipe search" active={screen==='search'}><div className="utility-screen search-screen" style={s(`flex:1;${SCROLL};padding:${TOP_SAFE} 0 ${BOTTOM_SAFE}`)}>
       <div style={s('display:flex;align-items:center;gap:11px;padding:0 18px')}>
         <button onClick={() => { setCollectionFilter(null); go('vault'); }} style={s(`width:44px;height:44px;border:1px solid ${LINE};border-radius:50%;background:${CARD};font-size:17px;flex:none`)}>‹</button>
         <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search recipes, creators, ingredients…" style={s(`flex:1;min-width:0;padding:13px 14px;border:1px solid ${GREEN};border-radius:14px;background:${CARD};font-size:16px;box-sizing:border-box`)} />
@@ -574,7 +593,7 @@ export default function Home() {
       </div>}
       <div style={s('padding:22px 18px 10px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#526447')}>{filteredSearch.length} recipes</div>
       <div style={s('display:flex;flex-direction:column;gap:11px;padding:0 18px')}>
-        {filteredSearch.map((r) => <button key={r.id} onClick={() => openRecipe(r.id)} style={s(`display:flex;align-items:center;gap:13px;width:100%;padding:10px;border:1px solid ${LINE};border-radius:15px;background:${CARD};text-align:left`)}>
+        {filteredSearch.map((r) => <button key={r.id} onClick={e => openRecipe(r.id,e.currentTarget)} style={s(`display:flex;align-items:center;gap:13px;width:100%;padding:10px;border:1px solid ${LINE};border-radius:15px;background:${CARD};text-align:left`)}>
           {r.img && <RecipeImage src={r.img} alt={r.t} style={s('width:58px;height:58px;border-radius:11px;object-fit:cover;flex:none')} />}
           <span style={s('display:flex;flex-direction:column;gap:4px;min-width:0')}>
             <b style={s('font-size:14px;line-height:1.25')}>{r.t}</b>
@@ -582,7 +601,7 @@ export default function Home() {
           </span>
         </button>)}
       </div>
-    </div>}
+    </div></RetainedView>}
 
     {screen === 'import' && <div className="utility-screen import-screen app-scroll">
       <button className="back-button" onClick={() => go('vault')}><KitchenIcon name="arrow" style={{transform:'rotate(180deg)'}} size={18} /> Cookbook</button>
@@ -694,12 +713,12 @@ export default function Home() {
       </div>
     </div>}
 
-    {screen === 'detail' && active && <div className="recipe-detail" style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
+    {screen === 'detail' && active && <div ref={detailRegion} tabIndex={-1} aria-label="Recipe details" className="recipe-detail" style={s('flex:1;display:flex;flex-direction:column;min-height:0')}>
       <div className="detail-scroll" style={s(`flex:1;${SCROLL}`)}>
         {signedIn&&<div className="social-share-control"><button onClick={()=>setSharingRecipe({id:active.id,title:active.t})}>Share recipe ↗</button><RecipeSharingSummary key={String(!!sharingRecipe)+active.id} recipeId={active.id}/></div>}
         {safeSourceLink(active.originalRecipeUrl)&&<p style={{margin:'12px 20px'}}><a href={safeSourceLink(active.originalRecipeUrl)!} target="_blank" rel="noopener noreferrer">Full recipe</a></p>}
 
-        <div className="detail-hero"><RecipeImage src={active.img ?? undefined} alt={active.t} /><div className="detail-toolbar"><button className="round-button" onClick={() => go('vault')} aria-label="Back to cookbook"><KitchenIcon name="arrow" style={{transform:'rotate(180deg)'}} /></button>{signedIn && <div><button className="round-button" onClick={openEditRecipe} aria-label="Edit recipe"><KitchenIcon name="edit" size={19} /></button><button className="round-button" onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe"><KitchenIcon name="trash" size={19} /></button></div>}</div></div>
+        <div className="detail-hero"><RecipeImage src={active.img ?? undefined} alt={active.t} /><div className="detail-toolbar"><button className="round-button" onClick={() => {pendingReturn.current=true;go(recipeOrigin);}} aria-label={recipeReturnLabel(recipeOrigin)}><KitchenIcon name="arrow" style={{transform:'rotate(180deg)'}} /></button>{signedIn && <div><button className="round-button" onClick={openEditRecipe} aria-label="Edit recipe"><KitchenIcon name="edit" size={19} /></button><button className="round-button" onClick={deleteActiveRecipe} disabled={deletingRecipe} aria-label="Delete recipe"><KitchenIcon name="trash" size={19} /></button></div>}</div></div>
         <header className="recipe-heading"><span className="recipe-origin">{active.k} <span>from {active.s}</span></span><h1>{active.t}</h1><p><KitchenIcon name="clock" size={17} />{active.time}<span className="meta-dot" />{servingLabel(active, servings)}<span className="meta-dot" />{active.a.length} ingredients</p></header>
         {signedIn && <div style={s('padding:12px 20px 0;display:flex;flex-direction:column;gap:8px')}>
           {active.photoMetadata?.kind === 'generated' && <span style={s(`font-size:11px;color:${MUTED}`)}>AI illustration</span>}
@@ -824,7 +843,7 @@ export default function Home() {
           </div>
         </>}
         <div style={s(`margin:22px 20px 0;border:1px solid ${LINE};border-radius:17px;background:${CARD};overflow:hidden`)}>
-          {signedIn&&<button className="outline-button" onClick={()=>{setOwnFeed(true);go('community');}}>View my public profile</button>}
+          {signedIn&&<button className="outline-button" onClick={()=>{setOwnFeed(true);setProfileRequest(n=>n+1);go('community');}}>View my public profile</button>}
           {[{ glyph: '◉', label: 'Recipe storage', value: 'Private cookbook' }, { glyph: '✦', label: 'Cooking help', value: 'AI sous-chef' }, { glyph: '▣', label: 'Units', value: 'Metric' }, { glyph: '◌', label: 'Notifications', value: 'Coming soon' }].map((row) => <div key={row.label} style={s(`display:flex;align-items:center;justify-content:space-between;padding:15px;border-bottom:1px solid ${LINE};font-size:13.5px`)}>
             <span style={s('display:flex;align-items:center;gap:11px')}><span style={s(`color:${MUTED}`)}>{row.glyph}</span>{row.label}</span>
             <span style={s(`font-size:12px;color:${MUTED}`)}>{row.value}</span>
@@ -835,7 +854,7 @@ export default function Home() {
 
     {showTabs && <div className="navigation-ad"><BannerAd unit={GAM_BANNER_TABBAR_UNIT} sizes={[[320, 50]]} height={50} /></div>}
     {showTabs && <nav className="bottom-navigation" aria-label="Main navigation">
-      <button aria-current={screen === 'vault' || screen === 'search' ? 'page' : undefined} onClick={() => { pickFilter('All recipes'); go('vault'); }}><KitchenIcon name="book" /><span>Cookbook</span></button>
+      <button aria-current={screen === 'vault' || screen === 'search' ? 'page' : undefined} onClick={() => go('vault')}><KitchenIcon name="book" /><span>Cookbook</span></button>
       <button aria-current={screen === 'community' ? 'page' : undefined} onClick={() => {setOwnFeed(false);go('community');}}><KitchenIcon name="user" /><span>Community</span></button>
       <button className="nav-add" aria-label="Add a recipe" onClick={() => go('import')}><span><KitchenIcon name="plus" size={26} /></span><small>Add recipe</small></button>
       <button aria-current={screen === 'planner' ? 'page' : undefined} onClick={() => go('planner')}><KitchenIcon name="calendar" /><span>Plan</span></button>
