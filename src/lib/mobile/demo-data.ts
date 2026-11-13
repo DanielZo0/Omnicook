@@ -80,8 +80,16 @@ export const EXTRACT_STEPS = ['Reading the source', 'Parsing recipe details', 'E
 
 export function scaleAmount(amount: string, servings: number): string {
   if(servings===1)return amount;
-  const match=amount.match(/^([\d\s.,/½¼¾⅓⅔⅛⅜⅝⅞–-]+)(.*)$/);
+  const match=amount.match(/^([\d\s.,/½¼¾⅓⅔⅛⅜⅝⅞–—-]+)(.*)$/);
   if(!match)return amount;
   const scaled=scaleQuantity(match[1].trim(),servings);
   return scaled===match[1].trim()?amount:scaled+(match[1].endsWith(' ')?' ':'')+match[2];
+}
+
+
+export function servingLabel(recipe: Pick<MobileRecipe, 'n' | 'yieldServings'>, multiplier = 1): string {
+  const base = recipe.yieldServings === undefined ? recipe.n : recipe.yieldServings;
+  if (base === null || !Number.isFinite(base) || base <= 0) return 'Servings not set';
+  const count = Number((base * multiplier).toFixed(2));
+  return `${count} ${count === 1 ? 'serving' : 'servings'}`;
 }

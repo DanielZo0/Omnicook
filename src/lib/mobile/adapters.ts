@@ -8,7 +8,7 @@ function imageForRecipe(recipe: VaultRecipe): string {
 
 export function vaultToMobile(recipe: VaultRecipe): MobileRecipe {
   const minutes = (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0);
-  let source = 'Imported';
+  let source = 'Saved recipe';
   if (recipe.sourceUrl) {
     try { source = new URL(recipe.sourceUrl).hostname.replace(/^www\./, ''); } catch { /* keep default */ }
   }
@@ -22,7 +22,7 @@ export function vaultToMobile(recipe: VaultRecipe): MobileRecipe {
     c: recipe.creator ?? source,
     s: source,
     k: recipe.category,
-    time: minutes > 0 ? `${minutes} min` : 'Time not set',
+    time: recipe.prepMinutes === null && recipe.cookMinutes === null ? 'Time not set' : `${minutes} min`,
     n: recipe.servings ?? 1,
     img: imageForRecipe(recipe),
     photoMetadata: recipe.photoMetadata,

@@ -1,0 +1,45 @@
+/* The data-backed cookbook uses the compact, reviewed visual direction. */
+.app-shell .cookbook-topbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 0 16px; margin-bottom:24px; border-bottom:1px solid var(--line); }
+.app-shell .cookbook-topbar .mobile-brand { margin:0; display:flex; align-items:center; gap:3px; font-size:27px; }
+.app-shell .cookbook-topbar .mobile-account { display:grid; margin:0; flex:none; width:44px; height:44px; }
+.cookbook-location { display:none; font-size:12px; color:var(--muted); }
+.app-shell .cookbook-header { background:transparent; border-radius:0; padding:0; margin:0 0 20px; gap:16px; align-items:flex-start; }
+.app-shell .cookbook-header h1 { padding:0; margin:0 0 10px; max-width:none; font-size:clamp(27px, 4.5vw, 38px); line-height:1.15; letter-spacing:-.8px; }
+.app-shell .cookbook-header p { font-size:12px; line-height:1.6; color:var(--muted); }
+.app-shell .cookbook-add { flex:none; min-height:44px; padding:10px 14px; gap:7px; border-radius:12px; font-size:12px; background:var(--green); color:var(--paper); }
+.app-shell .cookbook-search { margin:0; border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:14px; }
+.app-shell .recipe-feature { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); min-height:225px; border-radius:18px; background:var(--lemon); margin-top:20px; }
+.app-shell .feature-copy { padding:20px; }
+.app-shell .feature-copy h2 { font-size:clamp(20px, 2.5vw, 32px); line-height:1.2; margin:12px 0; }
+.app-shell .feature-copy p { font-size:11px; }
+.app-shell .feature-button { min-height:44px; padding:10px 13px; border-radius:10px; font-size:12px; }
+.app-shell .feature-photo { min-height:190px; }
+.app-shell .feature-photo > span { background:var(--paper); border-radius:8px; max-width:calc(100% - 16px); right:8px; font-size:10px; }
+.recipe-time-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }
+.recipe-time-fields label { display:flex; flex-direction:column; gap:7px; font-size:12px; color:var(--muted); }
+.recipe-time-fields input { min-width:0; width:100%; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--surface); color:var(--ink); font-size:16px; }
+.recipe-metadata-note { color:var(--muted); font-size:12px; line-height:1.6; margin:12px 0 0; }
+@media (max-width:799px) {
+ .app-shell .vault-screen { padding-top:max(env(safe-area-inset-top),16px); }
+ .app-shell .cookbook-header h1 { font-size:28px; }
+ .app-shell .recipe-feature { min-height:215px; }
+ .app-shell .feature-copy { padding:18px 14px; }
+ .app-shell .feature-copy h2 { font-size:22px; }
+ .app-shell .feature-copy p { font-size:10px; }
+}
+@media (max-width:370px) {
+ .app-shell .cookbook-header { gap:10px; }
+ .app-shell .cookbook-header h1 { font-size:25px; }
+ .app-shell .cookbook-add { padding:10px; font-size:11px; }
+ .app-shell .cookbook-add svg { display:none; }
+ .app-shell .feature-copy { padding:16px 12px; }
+ .app-shell .feature-copy h2 { font-size:19px; }
+ .app-shell .feature-button { font-size:11px; padding:9px 10px; }
+ .recipe-time-fields { grid-template-columns:1fr; }
+}
+@media (min-width:800px) {
+ .app-shell .cookbook-topbar .mobile-brand { display:none; }
+ .cookbook-location { display:block; }
+ .app-shell .recipe-feature { min-height:270px; }
+ .app-shell .feature-copy { padding:28px; }
+}

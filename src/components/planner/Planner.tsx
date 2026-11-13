@@ -21,7 +21,7 @@ import {
 import { mobileToPlannable } from "@/lib/planner/mobile";
 import { generatePlan } from "@/lib/planner/generate";
 import { plannerClient, type AnalysisReview } from "@/lib/planner/client";
-import { responseIsCurrent } from "@/lib/planner/ui-state";
+import { responseIsCurrent, shouldRefreshCookbook } from "@/lib/planner/ui-state";
 import { evaluateDay } from "@/lib/nutrition/targets";
 import { buildShoppingList } from "@/lib/shopping/build-list";
 import { foodFeatures } from "@/lib/planner/foods";
@@ -90,6 +90,7 @@ export function Planner({
     [analysisChoice, setAnalysisChoice] = useState(""),
     [reviewRecipe, setReviewRecipe] = useState(""),
     [checked, setChecked] = useState<Record<string, boolean>>({});
+  const cookbookSnapshot = useRef(recipes);
   const alive = useRef(true),
     stamp = useRef({ owner: ownerKey, request: 0 }),
     guestEntries = useRef<PlanEntry[]>([]),
@@ -156,8 +157,15 @@ export function Planner({
     setDraft(null);
     setUnlocked([]);
     setChecked({});
+  }, [week, ownerKey, signedIn]);
+  useEffect(() => { load(); }, [week, ownerKey, signedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!shouldRefreshCookbook(cookbookSnapshot.current, recipes, pending)) return;
+    // Mark the catalogue before loading; a read changes pending too. Defer
+    // photo/catalogue refreshes while writes are active so their callbacks win.
+    cookbookSnapshot.current = recipes;
     load();
-  }, [week, ownerKey, signedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [recipes, pending]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (initialRecipeId && state) {
       setPicker({
@@ -740,7 +748,7 @@ export function Planner({
       )}
       {picker && (
         <RecipePicker
-          nutritionUnavailable={previewOnly}
+          nutritionUnavailable={previewOnly || !state?.capabilities.nutrition}
           recipes={activeRecipes.filter((r) => r.source.kind === "recipe")}
           date={picker.date}
           slot={picker.slot}

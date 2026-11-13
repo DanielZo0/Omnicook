@@ -4,3 +4,8 @@ export function responseIsCurrent(
 ): boolean {
   return start.owner === current.owner && start.request === current.request;
 }
+
+
+export function shouldRefreshCookbook(previous: readonly unknown[], current: readonly unknown[], pending: boolean): boolean {
+  return previous !== current && !pending;
+}
