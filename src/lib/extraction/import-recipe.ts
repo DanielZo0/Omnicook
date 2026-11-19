@@ -1,5 +1,5 @@
-import { INSTAGRAM_SLIDE_UNREADABLE, readSource, SourceReadError, type SourceDocument } from './fetch-source';
-import type { CarouselTranscriber } from './instagram-carousel';
+import { INSTAGRAM_SLIDE_UNREADABLE, readInstagramSlide, readSource, SourceReadError, type SourceDocument } from './fetch-source';
+import { instagramPostShortcode, type CarouselTranscriber } from './instagram-carousel';
 import { createImportBudget, type ImportBudget } from './import-budget';
 import { importExtractionSchema, type ImportExtraction, type EditableRecipeDraft, type FormulaAlternative } from './import-schema';
 import type { ExtractionProvider } from './provider';
@@ -17,10 +17,21 @@ export async function importRecipe(input:{source:string;captionDraft?:ImportExtr
  let caption:ImportExtraction;
  try{caption=input.captionDraft&&input.originalRecipeUrl?importExtractionSchema.parse(input.captionDraft):await analyze(source);}
  catch (error) {
-  if (error instanceof Error && error.name === 'ZodError') {
-   throw new SourceReadError(source.carouselEvidence ? INSTAGRAM_SLIDE_UNREADABLE : 'No usable recipe ingredients were found. Paste the full caption or original recipe link.');
+  if (!(error instanceof Error) || error.name !== 'ZodError') throw error;
+  if (source.carouselEvidence) throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+  const url = source.page && source.sourceUrl ? new URL(input.source.trim()) : null;
+  if (!url || !instagramPostShortcode(url) || !url.searchParams.has('img_index')) {
+   throw new SourceReadError('No usable recipe ingredients were found. Paste the full caption or original recipe link.');
   }
-  throw error;
+  source = await readInstagramSlide(url, source.page, budget, transcribeCarousel);
+  try {
+   caption = await analyze(source);
+  } catch (retryError) {
+   if (retryError instanceof Error && retryError.name === 'ZodError') {
+    throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+   }
+   throw retryError;
+  }
  }
  const transcript = source.carouselEvidence?.transcript;
  if (transcript && !caption.alternatives && !transcript.preparationLines.length) {
