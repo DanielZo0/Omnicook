@@ -17,11 +17,11 @@ const transcript = {
   preparationLines: [],
   bakeLine: 'Cottura a 180 gradi per 35 o 40 minuti',
 };
-function page(caption = 'Segui il profilo per altri dolci.') {
+function page(caption = 'Segui il profilo per altri dolci.', carousel = slides) {
   return '<meta property="og:description" content="Follow this account for more cake ideas and baking inspiration throughout the week.">' +
     '<script type="application/json">' + JSON.stringify({ items: [
       { code: 'other', carousel_media: [image(cdn + '/unrelated.jpg')] },
-      { code: 'DfGpRKSCCKR', caption: { text: caption }, carousel_media: slides },
+      { code: 'DfGpRKSCCKR', caption: { text: caption }, carousel_media: carousel },
     ] }) + '</script>';
 }
 function publicDns() {
@@ -197,18 +197,31 @@ test('normal API route returns selected-slide review and canonical recovery', as
   });
   const providerModule = require('../src/lib/extraction/provider.ts');
   const groq = require('../src/lib/extraction/groq.ts');
+  const longCaption = 'Here are several of my favourite cakes from the past year. Which one would you try first?';
+  const eighthImage = cdn + '/slide-8.jpg';
+  const eighthTranscript = { ...transcript, text: 'Torta\n125 g farina\n2 uova\n' + transcript.bakeLine };
+  const eighthIngredients = [
+    { position: 0, name: 'farina', quantity: '125', unit: 'g' },
+    { position: 1, name: 'uova', quantity: '2' },
+  ];
   mock.method(providerModule, 'selectExtractionProvider', () => ({
     name: 'groq',
-    extract: async () => ({
-      title: 'Torta Margherita', ingredients: [{ position: 0, name: 'farina', quantity: '150', unit: 'g' }],
-      steps: [], completeness: 'incomplete', missingFields: ['instructions'],
+    extract: async (_url, text) => text === longCaption ? { error: 'insufficient_recipe_content' } : ({
+      title: 'Torta Margherita', ingredients: eighthIngredients,
+      steps: [{ position: 0, instruction: 'Invented step.' }], completeness: 'complete', missingFields: [],
     }),
   }));
-  mock.method(groq, 'selectCarouselTranscriber', () => async () => transcript);
+  let ocr = async () => eighthTranscript;
+  mock.method(groq, 'selectCarouselTranscriber', () => ocr);
   publicDns();
-  mock.method(global, 'fetch', async url => String(url).startsWith(post)
-    ? new Response(page(), { headers: { 'Content-Type': 'text/html' } })
-    : new Response(jpeg, { headers: { 'Content-Type': 'image/jpeg' } }));
+  const requests = [];
+  let html = page();
+  mock.method(global, 'fetch', async url => {
+    requests.push(String(url));
+    return String(url).startsWith(post)
+      ? new Response(html, { headers: { 'Content-Type': 'text/html' } })
+      : new Response(jpeg, { headers: { 'Content-Type': 'image/jpeg' } });
+  });
   const { POST } = require('../src/app/api/import/route.ts');
   const request = source => new Request('http://localhost/api/import', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }),
@@ -221,6 +234,45 @@ test('normal API route returns selected-slide review and canonical recovery', as
   const canonical = await POST(request(post));
   assert.equal(canonical.status, 422);
   assert.match((await canonical.json()).message, /multiple slides/);
+  const selectedEighth = post + '?img_index=8&dlrf=tracking';
+  html = page(longCaption, [...slides, image(eighthImage)]);
+  requests.length = 0;
+  const recovered = await POST(request(selectedEighth));
+  const recoveredDraft = await recovered.json();
+  assert.equal(recovered.status, 200);
+  assert.deepEqual(requests, [selectedEighth, eighthImage]);
+  assert.equal(recoveredDraft.sourceUrl, post + '?img_index=8');
+  assert.equal(recoveredDraft.status, 'incomplete');
+  assert.deepEqual(recoveredDraft.missingFields, ['instructions']);
+  assert.deepEqual(recoveredDraft.draft.ingredients.map(({ name, quantity, unit }) => [name, quantity, unit ?? null]),
+    [['farina', '125', 'g'], ['uova', '2', null]]);
+  assert.deepEqual(recoveredDraft.draft.steps, [{ position: 0, instruction: eighthTranscript.bakeLine }]);
+
+  for (const suffix of ['?img_index=4', '?img_index=9', '?img_index=8&img_index=8']) {
+    requests.length = 0;
+    const invalid = await POST(request(post + suffix));
+    assert.equal(invalid.status, 422);
+    assert.match((await invalid.json()).message, /text from the slide/);
+    assert.deepEqual(requests, [post + suffix]);
+  }
+  ocr = null;
+  requests.length = 0;
+  const unavailable = await POST(request(selectedEighth));
+  assert.equal(unavailable.status, 422);
+  assert.match((await unavailable.json()).message, /selected Instagram slide/);
+  assert.deepEqual(requests, [selectedEighth]);
+  ocr = async () => ({ ...eighthTranscript, text: longCaption });
+  requests.length = 0;
+  const rejected = await POST(request(selectedEighth));
+  assert.equal(rejected.status, 422);
+  assert.match((await rejected.json()).message, /selected Instagram slide/);
+  assert.deepEqual(requests, [selectedEighth, eighthImage]);
+  html = page(longCaption, []);
+  requests.length = 0;
+  const missingSlide = await POST(request(selectedEighth));
+  assert.equal(missingSlide.status, 422);
+  assert.match((await missingSlide.json()).message, /selected Instagram slide/);
+  assert.deepEqual(requests, [selectedEighth]);
 });
 
 test('image recovery shares the cumulative AI budget with text extraction', async () => {

@@ -194,6 +194,39 @@ export type SourceDocument = {
   carouselEvidence?: { index: number; transcript: CarouselTranscript };
 };
 
+export async function readInstagramSlide(
+  input: URL,
+  page: SourceDocument['page'],
+  budget: ImportBudget,
+  transcribeCarousel?: CarouselTranscriber,
+): Promise<SourceDocument> {
+  const carousel = page?.instagramCarousel;
+  if (!carousel || instagramPostShortcode(input) !== carousel.shortcode) {
+    throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+  }
+  const slide = selectCarouselSlide(input, carousel);
+  if (!slide) throw new SourceReadError(INSTAGRAM_SLIDE_REQUIRED);
+  if (!transcribeCarousel) throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+
+  try {
+    const image = await budget.runSource(signal => {
+      budget.takeAdditionalRequest();
+      return fetchCarouselImage(slide.url, signal);
+    });
+    const transcript = await budget.runAI(timeoutMs => transcribeCarousel(image, Math.min(timeoutMs, 10_000)));
+    if (!transcript.text.trim()) throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+    return {
+      sourceUrl: slide.sourceUrl,
+      imageUrl: null,
+      text: transcript.text,
+      page: null,
+      carouselEvidence: { index: slide.index, transcript },
+    };
+  } catch {
+    throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+  }
+}
+
 export async function readSource(source:string,budget:ImportBudget,transcribeCarousel?:CarouselTranscriber):Promise<SourceDocument>{
  const input=source.trim();
  if(!/^https?:\/\//i.test(input))return {sourceUrl:null,imageUrl:null,text:input.slice(0,10000),page:null};
@@ -211,31 +244,14 @@ export async function readSource(source:string,budget:ImportBudget,transcribeCar
  const page=selected.page,isSocial=socialHost(new URL(selected.url).hostname);
  const text=/(?:^|\.)facebook\.com$/.test(new URL(selected.url).hostname)?facebookPostText(page.description):page.structuredText||(isSocial?(page.caption||page.description):[page.title,page.description,page.body].filter(Boolean).join('\n\n'));
  if (!text.trim() || (isSocial && text.length < 60)) {
-  const carousel = page.instagramCarousel;
   const inputUrl = new URL(input);
-  if (!carousel || instagramPostShortcode(inputUrl) !== carousel.shortcode) {
-   throw new SourceReadError('This post cannot be read. Paste its full caption or original recipe link.');
+  if (instagramPostShortcode(inputUrl) && inputUrl.searchParams.has('img_index')) {
+   return readInstagramSlide(inputUrl, page, budget, transcribeCarousel);
   }
-  const slide = selectCarouselSlide(inputUrl, carousel);
-  if (!slide) throw new SourceReadError(INSTAGRAM_SLIDE_REQUIRED);
-  if (!transcribeCarousel) throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
-  try {
-   const image = await budget.runSource(signal => {
-    budget.takeAdditionalRequest();
-    return fetchCarouselImage(slide.url, signal);
-   });
-   const transcript = await budget.runAI(timeoutMs => transcribeCarousel(image, Math.min(timeoutMs, 10_000)));
-   if (!transcript.text.trim()) throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
-   return {
-    sourceUrl: slide.sourceUrl,
-    imageUrl: null,
-    text: transcript.text,
-    page: null,
-    carouselEvidence: { index: slide.index, transcript },
-   };
-  } catch {
-   throw new SourceReadError(INSTAGRAM_SLIDE_UNREADABLE);
+  if (page.instagramCarousel && instagramPostShortcode(inputUrl) === page.instagramCarousel.shortcode) {
+   throw new SourceReadError(INSTAGRAM_SLIDE_REQUIRED);
   }
+  throw new SourceReadError('This post cannot be read. Paste its full caption or original recipe link.');
  }
  return {sourceUrl:result.url,imageUrl:normalizeImageUrl(page.image,selected.url),text:text.slice(0,10000),page,originalRecipeUrl:selected!==result?selected.url:null};
 }
